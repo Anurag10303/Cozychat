@@ -1,0 +1,37 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "ChatApp",
+  "main": "index.js",
+  "scripts": {
+    "dev": "concurrently \"nodemon index.js\" \"npm run dev --prefix Frontend\"",
+    "start": "node index.js",
+    "build": "npm install && npm install --prefix Frontend && npm run build --prefix Frontend"
+  },
+  "keywords": [
+    "MERN",
+    "ChatApp",
+    "Backend",
+    "Express",
+    "MongoDB",
+    "Node.js"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.1",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.16.1",
+    "multer": "^2.0.1",
+    "socket.io": "^4.8.1"
+  },
+  "type": "module",
+  "devDependencies": {
+    "concurrently": "^9.2.0",
+    "nodemon": "^3.1.10"
+  }
+}

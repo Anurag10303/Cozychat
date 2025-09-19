@@ -1,0 +1,20 @@
+.msg{
+    min-height: 75vh;
+}
+/* Hide scrollbar for Chrome, Safari and Opera */
+.msg::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for IE, Edge and Firefox */
+.msg {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+chat-footer {
+  font-size: 0.75rem;     /* text-xs */
+  color: #9ca3af;         /* Tailwind gray-400 */
+  margin-top: 4px;
+  padding-right: 4px;
+  text-align: right;
+}
