@@ -5,16 +5,13 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [
-      "http://localhost:5173",
-      "https://chat-application-j0m9.onrender.com"
-    ],
-    credentials: true
+    origin: ["http://localhost:5173", "https://cozychat1.onrender.com"],
+    credentials: true,
   },
 });
-export const getReceiverSocketId=(receiverId)=>{
-    return users[receiverId];
-}
+export const getReceiverSocketId = (receiverId) => {
+  return users[receiverId];
+};
 const users = {};
 io.on("connection", (socket) => {
   console.log("User connected succesfuly", socket.id);
