@@ -20,12 +20,12 @@ app.use(cookieParser());
 // allow both deployed and local frontend
 const allowedOrigins = [
   "http://localhost:5173", // for local frontend
-  "https://chat-application-j0m9.onrender.com", // for deployed frontend
+  "https://cozychat1.onrender.com", // for deployed frontend
 ];
 
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://chat-application-j0m9.onrender.com"],
+    origin: ["http://localhost:5173", "https://cozychat1.onrender.com"],
     // origin: "http://localhost:5173", // Match frontend origin
     credentials: true, // Allow cookies
     exposedHeaders: ["Set-Cookie", "Authorization"],
