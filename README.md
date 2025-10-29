@@ -1,1 +1,1 @@
-# Connecto
+# CozyChat
