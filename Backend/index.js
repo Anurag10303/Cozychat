@@ -50,6 +50,11 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
+// ✅ Root test route (for development and backend testing)
+app.get("/", (req, res) => {
+  res.send("✅ CozyChat backend is live and working!");
+});
+
 try {
   mongoose
     .connect(URI)
