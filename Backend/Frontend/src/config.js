@@ -1,6 +1,6 @@
 // src/baseURL.js
-// const BASE_URL = "https://chat-application-j0m9.onrender.com"
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = "https://cozychat1.onrender.com";
+// const BASE_URL = "http://localhost:3000";
 
 export default BASE_URL;
 console.log("BASE", BASE_URL);
