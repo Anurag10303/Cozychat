@@ -2,7 +2,7 @@
 
 import useSendMessage from "../../context/useSendMessage";
 import { useState } from "react";
-import useConversation from "../../zutstand/userConveration";
+import useConversation from "../../zustand/userConveration";
 import { useTheme } from "../../context/ThemeContext";
 import { Paperclip, Hash, Send } from "lucide-react";
 

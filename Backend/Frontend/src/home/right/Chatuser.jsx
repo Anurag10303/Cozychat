@@ -1,16 +1,17 @@
-"use client"
+"use client";
 
-import useConversation from "../../zutstand/userConveration"
-import { useSocketContext } from "../../context/SocketContext"
-import { useTheme } from "../../context/ThemeContext"
-import { Phone, Video, MoreVertical } from "lucide-react"
-import BASE_URL from "../../config"
+import useConversation from "../../zustand/userConveration";
+import { useSocketContext } from "../../context/SocketContext";
+import { useTheme } from "../../context/ThemeContext";
+import { Phone, Video, MoreVertical } from "lucide-react";
+import BASE_URL from "../../config";
 
 function Chatuser() {
-  const { selectedConversation } = useConversation()
-  const { onlineUser } = useSocketContext()
-  const { theme } = useTheme()
-  const isOnline = selectedConversation && onlineUser.includes(selectedConversation._id)
+  const { selectedConversation } = useConversation();
+  const { onlineUser } = useSocketContext();
+  const { theme } = useTheme();
+  const isOnline =
+    selectedConversation && onlineUser.includes(selectedConversation._id);
 
   const getInitials = (name) => {
     return (
@@ -19,8 +20,8 @@ function Chatuser() {
         .map((n) => n[0])
         .join("")
         .toUpperCase() || "U"
-    )
-  }
+    );
+  };
 
   return (
     <div
@@ -38,30 +39,38 @@ function Chatuser() {
           <div
             className={`
             w-10 h-10 rounded-full overflow-hidden flex items-center justify-center transition-all duration-300
-            ${theme === "light" ? "bg-gradient-to-br from-blue-100 to-purple-100" : "bg-slate-700"}
+            ${
+              theme === "light"
+                ? "bg-gradient-to-br from-blue-100 to-purple-100"
+                : "bg-slate-700"
+            }
           `}
           >
             {selectedConversation.avatar?.trim() ? (
-            <img
-              alt={selectedConversation?.fullName}
-              src={`${BASE_URL}/uploads/${selectedConversation.avatar}`}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.style.display = "none"
-                e.target.nextSibling.style.display = "flex"
-              }}
-            />
-            ):null}
-            {!selectedConversation.avatar?.trim()&&(
-            <div
-              className={`
+              <img
+                alt={selectedConversation?.fullName}
+                src={`${BASE_URL}/uploads/${selectedConversation.avatar}`}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = "none";
+                  e.target.nextSibling.style.display = "flex";
+                }}
+              />
+            ) : null}
+            {!selectedConversation.avatar?.trim() && (
+              <div
+                className={`
                 w-full h-full text-sm font-medium flex items-center justify-center
-                ${theme === "light" ? "bg-gradient-to-br from-blue-400 to-purple-500 text-white" : "bg-slate-700 text-white"}
+                ${
+                  theme === "light"
+                    ? "bg-gradient-to-br from-blue-400 to-purple-500 text-white"
+                    : "bg-slate-700 text-white"
+                }
               `}
-              // style={{ display: "none" }}
-            >
-              {getInitials(selectedConversation.fullName||"")}
-            </div>
+                // style={{ display: "none" }}
+              >
+                {getInitials(selectedConversation.fullName || "")}
+              </div>
             )}
           </div>
           {isOnline && (
@@ -95,8 +104,8 @@ function Chatuser() {
                   ? "bg-green-100 text-green-700 shadow-sm"
                   : "bg-green-500/20 text-green-400"
                 : theme === "light"
-                  ? "bg-gray-100 text-gray-600"
-                  : "bg-slate-600 text-slate-300"
+                ? "bg-gray-100 text-gray-600"
+                : "bg-slate-600 text-slate-300"
             }
           `}
           >
@@ -143,7 +152,7 @@ function Chatuser() {
         </button>
       </div>
     </div>
-  )
+  );
 }
 
-export default Chatuser
+export default Chatuser;

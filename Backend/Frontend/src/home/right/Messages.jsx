@@ -5,7 +5,7 @@ import useGetMessage from "../../context/useGetMessage";
 import Loading from "../../components/Loading";
 import { useRef, useEffect } from "react";
 import useGetSocketMessage from "../../context/useGetSocketMessage";
-import useConversation from "../../zutstand/userConveration";
+import useConversation from "../../zustand/userConveration";
 import { useTheme } from "../../context/ThemeContext";
 
 function Messages() {

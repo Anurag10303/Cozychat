@@ -2,7 +2,7 @@
 
 import { Power } from "lucide-react";
 import { useSocketContext } from "../../context/SocketContext";
-import useConversation from "../../zutstand/userConveration";
+import useConversation from "../../zustand/userConveration";
 import { useTheme } from "../../context/ThemeContext";
 
 function LogOut() {

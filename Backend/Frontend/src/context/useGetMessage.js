@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import useConversation from "../zutstand/userConveration";
+import useConversation from "../zustand/userConveration";
 import BASE_URL from "../config";
 
 function useGetMessage() {

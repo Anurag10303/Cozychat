@@ -2,7 +2,7 @@
 
 import { CiSearch } from "react-icons/ci";
 import useGetAllUsers from "../../context/useGetAllUsers";
-import useConversation from "../../zutstand/userConveration";
+import useConversation from "../../zustand/userConveration";
 import { useState } from "react";
 import { useTheme } from "../../context/ThemeContext";
 
