@@ -16,6 +16,7 @@ build/
 
 # Environment files
 .env
+./Backend/env
 .env.*
 !.env.example
 
