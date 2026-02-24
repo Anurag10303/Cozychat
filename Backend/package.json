@@ -4,10 +4,11 @@
   "description": "ChatApp",
   "main": "index.js",
   "scripts": {
-    "dev": "concurrently \"nodemon index.js\" \"npm run dev --prefix Frontend\"",
-    "start": "nodemon index.js",
-    "build": "npm install && npm install --prefix Frontend && npm run build --prefix Frontend"
-  },
+  "dev": "concurrently \"nodemon index.js\" \"npm run dev --prefix Frontend\"",
+  "start": "nodemon index.js",
+  "prod": "cross-env NODE_ENV=production node index.js",
+  "build": "npm install && npm install --prefix Frontend && npm run build --prefix Frontend"
+},
   "keywords": [
     "MERN",
     "ChatApp",
@@ -32,6 +33,7 @@
   "type": "module",
   "devDependencies": {
     "concurrently": "^9.2.0",
+    "cross-env": "^10.1.0",
     "nodemon": "^3.1.14"
   }
 }
