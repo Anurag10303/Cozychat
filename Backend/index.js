@@ -42,11 +42,13 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // -------deployment----
 if (process.env.NODE_ENV === "production") {
-  const dirPath = path.resolve();
-  app.use(express.static(path.join(dirPath, "Frontend", "dist")));
+  const __dirname = path.resolve();
+  const frontendPath = path.join(__dirname, "..", "Frontend", "dist");
 
-  app.get("/*splat", (req, res) => {
-    res.sendFile(path.resolve(dirPath, "Frontend", "dist", "index.html"));
+  app.use(express.static(frontendPath));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(frontendPath, "index.html"));
   });
 }
 
