@@ -1,7 +1,9 @@
 import User from "../models/user.model.js";
 import bcrypt from "bcrypt";
 import createTokenAndSaveCookie from "../authenticator/jwtAuth.js";
+import mongoose from "mongoose";
 // user.controller.js (signUp section)
+console.log("User controller loaded");
 export const signUp = async (req, res) => {
   try {
     console.log("Received data:", req.body);
@@ -17,7 +19,7 @@ export const signUp = async (req, res) => {
     if (password !== confirmPassword) {
       return res.status(400).json({ message: "Passwords do not match" });
     }
-
+    console.log("Mongoose readyState:", mongoose.connection.readyState);
     const user = await User.findOne({ email });
     if (user) {
       return res.status(400).json({ message: "User already exists" });
@@ -54,7 +56,9 @@ export const signUp = async (req, res) => {
       body: req.body,
       file: req.file,
     });
-    res.status(500).json({ message: "Internal server error", error: error.message });
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
   }
 };
 
@@ -64,7 +68,9 @@ export const signIn = async (req, res) => {
 
   try {
     if (!email || !password) {
-      return res.status(400).json({ message: "Email and password are required" });
+      return res
+        .status(400)
+        .json({ message: "Email and password are required" });
     }
 
     const user = await User.findOne({ email });
@@ -93,26 +99,33 @@ export const signIn = async (req, res) => {
   }
 };
 
-export const signOut = async(req,res)=>{
-try {res.clearCookie("jwt");
-res.status(201).json({
-    message:"User Logged out successfully"
-})
-} catch(error) {
+export const signOut = async (req, res) => {
+  try {
+    res.clearCookie("jwt");
+    res.status(201).json({
+      message: "User Logged out successfully",
+    });
+  } catch (error) {
     console.log(error);
-    res.status(500).json({error:"Internal server error"});
-}
-}
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
 export const allUsers = async (req, res) => {
   try {
     if (!req.user || !req.user._id) {
-      return res.status(401).json({ message: "Unauthorized: No user ID found" });
+      return res
+        .status(401)
+        .json({ message: "Unauthorized: No user ID found" });
     }
     const loggedInUser = req.user._id;
-    const filteredUsers = await User.find({ _id: { $ne: loggedInUser } }).select("-password");
+    const filteredUsers = await User.find({
+      _id: { $ne: loggedInUser },
+    }).select("-password");
     res.status(200).json(filteredUsers); // Changed to 200 for GET request
   } catch (error) {
     console.error("Error in getting all users:", error); // Improved logging
-    res.status(500).json({ message: "Internal server error", error: error.message }); // Changed to 500 and structured response
+    res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message }); // Changed to 500 and structured response
   }
 };

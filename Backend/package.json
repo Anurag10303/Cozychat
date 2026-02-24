@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"nodemon index.js\" \"npm run dev --prefix Frontend\"",
-    "start": "node index.js",
+    "start": "nodemon index.js",
     "build": "npm install && npm install --prefix Frontend && npm run build --prefix Frontend"
   },
   "keywords": [
@@ -32,6 +32,6 @@
   "type": "module",
   "devDependencies": {
     "concurrently": "^9.2.0",
-    "nodemon": "^3.1.10"
+    "nodemon": "^3.1.14"
   }
 }

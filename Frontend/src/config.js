@@ -1,6 +1,4 @@
-// src/baseURL.js
-const BASE_URL = "https://cozychat1.onrender.com";
-// const BASE_URL = "http://localhost:3000";
+const BASE_URL = import.meta.env.VITE_API_URL;
 
 export default BASE_URL;
 console.log("BASE", BASE_URL);

@@ -170,7 +170,7 @@ export default function SignIn() {
 
             <button
               type="submit"
-              className="w-full rounded-lg py-2 text-white bg-gradient-to-r from-blue-500 to-pink-500"
+              className="w-full rounded-lg py-2 text-white bg-gradient-to-r from-blue-500 to-pink-500 cursor-pointer"
             >
               Sign In
             </button>

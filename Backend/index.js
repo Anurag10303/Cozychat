@@ -29,7 +29,7 @@ app.use(
     // origin: "http://localhost:5173", // Match frontend origin
     credentials: true, // Allow cookies
     exposedHeaders: ["Set-Cookie", "Authorization"],
-  })
+  }),
 );
 
 app.use("/user", userRoute);
@@ -55,15 +55,16 @@ app.get("/", (req, res) => {
   res.send("✅ CozyChat backend is live and working!");
 });
 
-try {
-  mongoose
-    .connect(URI)
-    .then(() => console.log("MongoDB connected"))
-    .catch((error) => console.log("MongoDB connection error:", error));
-} catch (error) {
-  console.error("Error connecting to MongoDB:", error);
-}
+mongoose
+  .connect(URI)
+  .then(() => {
+    console.log("MongoDB connected");
 
-server.listen(Port, () => {
-  console.log(`Server is running on port ${Port}`);
-});
+    server.listen(Port, () => {
+      console.log(`Server running on port ${Port}`);
+    });
+    console.log("Connected DB:", mongoose.connection.name);
+  })
+  .catch((error) => {
+    console.error("MongoDB connection failed:", error);
+  });
