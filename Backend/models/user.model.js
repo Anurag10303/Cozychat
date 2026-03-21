@@ -1,24 +1,29 @@
 import mongoose from "mongoose";
 
-const userSchema = new mongoose.Schema({
-  fullName: {
-    type: String,
-    required: true
+const userSchema = new mongoose.Schema(
+  {
+    fullName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: {
+      type: String,
+      required: true,
+    },
+    avatar: {
+      type: String,
+    },
   },
-  email: {
-    type: String,
-    required: true,
-    unique: true
-  },
-  password: {
-    type: String,
-    required: true
-  },
-  confirmPassword: {
-    type: String,
-  },
-  avatar:   { type: String },
-},{timestamps: true}); //timestamps creates createdAt and updatedAt fields automatically
+  { timestamps: true },
+);
 
 const User = mongoose.model("User", userSchema);
 

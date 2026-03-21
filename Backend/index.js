@@ -10,6 +10,9 @@ import userRoute from "./routes/user.route.js";
 import messageRoute from "./routes/message.route.js";
 import { app, server } from "./socketIo/server.js";
 
+import AppError from "./utils/AppError.js";
+import errorMiddleware from "./middleware/errorMiddleware.js";
+
 dotenv.config();
 
 const Port = process.env.PORT || 4000;
@@ -18,6 +21,7 @@ const URI = process.env.MONGODB_URL;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// ===== BASIC MIDDLEWARES =====
 app.use(express.json());
 app.use(cookieParser());
 
@@ -28,12 +32,14 @@ app.use(
   }),
 );
 
+// ===== ROUTES =====
 app.use("/user", userRoute);
-app.use("/user/message", messageRoute);
+app.use("/user/messages", messageRoute);
 
+// ===== STATIC FILES =====
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-// ===== PRODUCTION FRONTEND SERVING =====
+// ===== PRODUCTION FRONTEND =====
 if (process.env.NODE_ENV === "production") {
   const frontendPath = path.join(__dirname, "..", "Frontend", "dist");
 
@@ -44,11 +50,20 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-// Root test route
+// ===== TEST ROUTE =====
 app.get("/api-test", (req, res) => {
   res.send("Backend running");
 });
 
+// ===== 404 HANDLER =====
+app.all("*", (req, res, next) => {
+  next(new AppError(`Can't find ${req.originalUrl}`, 404));
+});
+
+// ===== GLOBAL ERROR HANDLER (ALWAYS LAST) =====
+app.use(errorMiddleware);
+
+// ===== DATABASE + SERVER =====
 mongoose
   .connect(URI)
   .then(() => {

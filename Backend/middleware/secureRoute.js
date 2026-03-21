@@ -1,26 +1,33 @@
-import jwt, { decode } from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
+import AppError from "../utils/AppError.js";
+
 const secureRoute = async (req, res, next) => {
   try {
     const token = req.cookies.jwt;
+
     if (!token) {
-      return res.status(401).json({
-        error: "No token, Unauthorized access",
-      });
+      return next(new AppError("Unauthorized: No token provided", 401));
     }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
     if (!decoded) {
-      return res.status(401).json({ error: "Token Verification failed" });
+      return next(new AppError("Token verification failed", 401));
     }
+
     const user = await User.findById(decoded.userId).select("-password");
+
     if (!user) {
-      return res.status(401).json({ error: "No user Found" });
+      return next(new AppError("User not found", 401));
     }
+
     req.user = user;
     next();
   } catch (error) {
-    console.log("Error in secureRoute:", error);
-    res.status(500).json({ error: "Internal server error" });
+    // IMPORTANT: forward error to global handler
+    next(error);
   }
 };
+
 export default secureRoute;
