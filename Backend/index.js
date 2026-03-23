@@ -12,6 +12,7 @@ import { app, server } from "./socketIo/server.js";
 
 import AppError from "./utils/AppError.js";
 import errorMiddleware from "./middleware/errorMiddleware.js";
+import { generalLimiter } from "./middleware/rateLimiter.js";
 
 dotenv.config();
 
@@ -24,7 +25,7 @@ const __dirname = path.dirname(__filename);
 // ===== BASIC MIDDLEWARES =====
 app.use(express.json());
 app.use(cookieParser());
-
+app.use(generalLimiter);
 app.use(
   cors({
     origin: ["http://localhost:5173", "https://cozychat1.onrender.com"],

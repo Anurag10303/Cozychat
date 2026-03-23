@@ -7,11 +7,13 @@ import {
   signUp,
 } from "../controller/user.controller.js";
 import secureRoute from "../middleware/secureRoute.js";
+import { authLimiter } from "../middleware/rateLimiter.js";
 
 const router = express.Router();
 
 router.post(
   "/signup",
+  authLimiter,
   (req, res, next) => {
     upload.single("avatar")(req, res, function (err) {
       if (err) {
@@ -22,7 +24,7 @@ router.post(
   },
   signUp,
 );
-router.post("/login", signIn);
+router.post("/login", authLimiter, signIn);
 router.post("/logout", signOut);
 router.get("/users", secureRoute, allUsers);
 
