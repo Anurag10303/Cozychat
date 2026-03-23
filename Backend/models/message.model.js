@@ -22,6 +22,16 @@ const messageSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    status: {
+      type: String,
+      enum: ["sent", "delivered", "seen"],
+      default: "sent",
+    },
+    clientMessageId: {
+      type: String,
+      required: true,
+      unique: true,
+    },
   },
   { timestamps: true },
 );

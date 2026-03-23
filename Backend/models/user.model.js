@@ -18,6 +18,10 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
+    lastSeen: {
+      type: Date,
+      default: null,
+    },
     avatar: {
       type: String,
     },
