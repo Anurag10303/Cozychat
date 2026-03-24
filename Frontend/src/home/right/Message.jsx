@@ -1,51 +1,99 @@
 "use client";
-import "./Message.css";
+
 import { useAuth } from "../../context/AuthProvider";
 import { useTheme } from "../../context/ThemeContext";
+import { Check, CheckCheck } from "lucide-react";
 
 function Message({ message }) {
   const [authUser] = useAuth();
   const { theme } = useTheme();
+  const isLight = theme === "light";
   const itsMe = message.senderId === authUser?.user?._id;
+
   const createdAt = new Date(message.createdAt);
   const formattedTime = createdAt.toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
   });
 
+  const getStatusIcon = () => {
+    if (!itsMe) return null;
+    if (message.status === "seen") {
+      return <CheckCheck className="w-3 h-3" style={{ color: "#AFA9EC" }} />;
+    }
+    if (message.status === "delivered") {
+      return (
+        <CheckCheck
+          className="w-3 h-3"
+          style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
+        />
+      );
+    }
+    return (
+      <Check
+        className="w-3 h-3"
+        style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
+      />
+    );
+  };
+
   return (
     <div
-      className={`flex mb-3 animate-fade-in ${
-        itsMe ? "justify-end" : "justify-start"
-      }`}
+      className={`flex mb-2 ${itsMe ? "justify-end" : "justify-start"}`}
+      style={{
+        animation: itsMe
+          ? "slideInRight 0.25s ease-out"
+          : "slideInLeft 0.25s ease-out",
+      }}
     >
       <div
-        className={`flex flex-col max-w-[75%] ${
-          itsMe ? "items-end" : "items-start"
-        }`}
+        className={`flex flex-col max-w-[72%] ${itsMe ? "items-end" : "items-start"}`}
       >
         <div
-          className={`px-4 py-2 rounded-2xl shadow-lg transition-all duration-300 transform hover:scale-[1.03] ${
+          className="px-4 py-2.5 transition-all duration-200 hover:scale-[1.01]"
+          style={
             itsMe
-              ? theme === "light"
-                ? "bg-gradient-to-br from-blue-500 to-purple-500 text-white shadow-blue-500/25"
-                : "bg-gradient-to-br from-blue-600/80 to-indigo-700/80 text-white backdrop-blur-md border border-blue-500/30 shadow-blue-700/40"
-              : theme === "light"
-              ? "bg-white text-gray-800 border border-gray-100 shadow-md"
-              : "bg-gradient-to-br from-slate-800/60 to-slate-900/70 text-gray-100 backdrop-blur-lg border border-slate-700/40 shadow-black/40"
-          }`}
+              ? {
+                  background: isLight
+                    ? "rgba(127,119,221,0.14)"
+                    : "rgba(100,80,200,0.3)",
+                  border: isLight
+                    ? "1px solid rgba(127,119,221,0.28)"
+                    : "1px solid rgba(175,169,236,0.2)",
+                  borderRadius: "18px 18px 4px 18px",
+                  backdropFilter: "blur(12px)",
+                  color: isLight ? "#26215C" : "#CECBF6",
+                }
+              : {
+                  background: isLight
+                    ? "rgba(255,255,255,0.88)"
+                    : "rgba(30,20,48,0.9)",
+                  border: isLight
+                    ? "1px solid rgba(127,80,160,0.1)"
+                    : "1px solid rgba(140,100,200,0.14)",
+                  borderRadius: "18px 18px 18px 4px",
+                  backdropFilter: "blur(12px)",
+                  color: isLight ? "#1E1828" : "#E8DFF5",
+                }
+          }
         >
           <p className="text-sm leading-relaxed break-words">
             {message.message}
           </p>
         </div>
-        <span
-          className={`text-[11px] mt-1 ${itsMe ? "pr-1" : "pl-1"} ${
-            theme === "light" ? "text-gray-500" : "text-gray-400"
-          }`}
+
+        {/* Timestamp + status */}
+        <div
+          className={`flex items-center gap-1 mt-1 ${itsMe ? "pr-1" : "pl-1"}`}
         >
-          {formattedTime}
-        </span>
+          <span
+            className="text-xs"
+            style={{ color: isLight ? "#B098C0" : "#6A5A80" }}
+          >
+            {formattedTime}
+          </span>
+          {getStatusIcon()}
+        </div>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+// User.jsx
 "use client";
 
 import useConversation from "../../zustand/userConveration.js";
@@ -5,135 +6,136 @@ import { useSocketContext } from "../../context/SocketContext.jsx";
 import { useTheme } from "../../context/ThemeContext.jsx";
 import BASE_URL from "../../config.js";
 
-function User({ user }) {
-  const { socket, onlineUser } = useSocketContext();
+const AVATAR_COLORS = [
+  {
+    light: { bg: "#EEEDFE", text: "#3C3489" },
+    dark: { bg: "#1C1440", text: "#CECBF6" },
+  },
+  {
+    light: { bg: "#FBEAF0", text: "#72243E" },
+    dark: { bg: "#2A0C1A", text: "#ED93B1" },
+  },
+  {
+    light: { bg: "#E1F5EE", text: "#085041" },
+    dark: { bg: "#061A12", text: "#5DCAA5" },
+  },
+  {
+    light: { bg: "#E6F1FB", text: "#0C447C" },
+    dark: { bg: "#06142A", text: "#85B7EB" },
+  },
+  {
+    light: { bg: "#FAEEDA", text: "#633806" },
+    dark: { bg: "#2A1E06", text: "#FAC775" },
+  },
+];
+
+function getColorIndex(name = "") {
+  let sum = 0;
+  for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
+  return sum % AVATAR_COLORS.length;
+}
+
+function getInitials(name = "") {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
+export function User({ user }) {
+  const { onlineUser } = useSocketContext();
   const isOnline = onlineUser.includes(user._id);
   const { selectedConversation, setSelectedConversation } = useConversation();
   const isSelected = selectedConversation?._id === user._id;
   const { theme } = useTheme();
+  const isLight = theme === "light";
 
-  const getInitials = (name) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
-  };
+  const colorIdx = getColorIndex(user.fullName);
+  const colors = AVATAR_COLORS[colorIdx][isLight ? "light" : "dark"];
 
   return (
     <div
-      className={`
-        flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all duration-300 transform hover:scale-[1.02]
-        ${
-          isSelected
-            ? theme === "light"
-              ? "bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 shadow-lg shadow-blue-500/25"
-              : "bg-blue-600 hover:bg-blue-700"
-            : theme === "light"
-            ? "hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:shadow-md"
-            : "hover:bg-slate-800"
-        }
-      `}
-      onClick={() => {
-        setSelectedConversation(user);
+      className="flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all duration-200"
+      style={{
+        background: isSelected
+          ? isLight
+            ? "rgba(127,119,221,0.12)"
+            : "rgba(127,119,221,0.18)"
+          : "transparent",
+        border: isSelected
+          ? isLight
+            ? "1px solid rgba(127,119,221,0.25)"
+            : "1px solid rgba(175,169,236,0.2)"
+          : "1px solid transparent",
+        boxShadow: isSelected ? "0 2px 16px rgba(127,119,221,0.1)" : "none",
       }}
+      onClick={() => setSelectedConversation(user)}
     >
-      <div className="relative">
+      {/* Avatar */}
+      <div className="relative flex-shrink-0">
         <div
-          className={`
-    w-12 h-12 rounded-full overflow-hidden flex items-center justify-center transition-all duration-300
-    ${
-      theme === "light"
-        ? "bg-gradient-to-br from-blue-100 to-purple-100"
-        : "bg-slate-700"
-    }
-  `}
+          className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold overflow-hidden"
+          style={{
+            background: colors.bg,
+            color: colors.text,
+            boxShadow: isSelected
+              ? `0 0 0 2px #7F77DD, 0 0 0 4px rgba(127,119,221,0.15)`
+              : "none",
+          }}
         >
           {user.avatar?.trim() ? (
             <img
-              alt={user.fullName}
               src={`${BASE_URL}/uploads/${user.avatar}`}
+              alt={user.fullName}
               className="w-full h-full object-cover"
               onError={(e) => {
                 e.target.style.display = "none";
-                e.target.nextSibling.style.display = "flex";
               }}
             />
-          ) : null}
-
-          {!user.avatar?.trim() && (
-            <div
-              className={`
-        w-full h-full text-sm font-medium flex items-center justify-center
-        ${
-          theme === "light"
-            ? "bg-gradient-to-br from-blue-400 to-purple-500 text-white"
-            : "bg-slate-700 text-white"
-        }
-      `}
-            >
-              {getInitials(user.fullName || "")}
-            </div>
+          ) : (
+            getInitials(user.fullName)
           )}
         </div>
 
         {isOnline && (
           <div
-            className={`
-            absolute -bottom-0.5 -right-0.5 w-4 h-4 border-2 rounded-full animate-pulse
-            ${
-              theme === "light"
-                ? "bg-green-400 border-white shadow-lg shadow-green-400/50"
-                : "bg-green-500 border-slate-900"
-            }
-          `}
+            className="absolute bottom-0 right-0 w-3 h-3 rounded-full"
+            style={{
+              background: "#3DD68C",
+              border: `2px solid ${isLight ? "rgba(255,252,255,0.95)" : "rgba(18,10,32,0.95)"}`,
+            }}
           />
         )}
       </div>
+
+      {/* Info */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <h3
-            className={`
-            font-medium truncate transition-colors duration-300
-            ${
-              isSelected
-                ? "text-white"
-                : theme === "light"
-                ? "text-gray-800"
-                : "text-slate-200"
-            }
-          `}
+            className="text-sm font-semibold truncate"
+            style={{ color: isLight ? "#1A1228" : "#F0EAF8" }}
           >
             {user.fullName}
           </h3>
           {isOnline && (
             <span
-              className={`
-              text-xs px-2 py-1 rounded-full transition-all duration-300
-              ${
-                theme === "light"
-                  ? "bg-green-100 text-green-700 shadow-sm"
-                  : "bg-green-500/20 text-green-400"
-              }
-            `}
+              className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
+              style={{
+                background: isLight
+                  ? "rgba(61,214,140,0.12)"
+                  : "rgba(61,214,140,0.1)",
+                color: "#3DD68C",
+              }}
             >
               Online
             </span>
           )}
         </div>
         <p
-          className={`
-          text-sm truncate transition-colors duration-300
-          ${
-            isSelected
-              ? theme === "light"
-                ? "text-blue-100"
-                : "text-blue-100"
-              : theme === "light"
-              ? "text-gray-500"
-              : "text-slate-400"
-          }
-        `}
+          className="text-xs truncate mt-0.5"
+          style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
         >
           {user.email}
         </p>

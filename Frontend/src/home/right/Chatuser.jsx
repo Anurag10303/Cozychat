@@ -6,149 +6,148 @@ import { useTheme } from "../../context/ThemeContext";
 import { Phone, Video, MoreVertical } from "lucide-react";
 import BASE_URL from "../../config";
 
+const AVATAR_COLORS = [
+  {
+    light: { bg: "#EEEDFE", text: "#3C3489" },
+    dark: { bg: "#1C1440", text: "#CECBF6" },
+  },
+  {
+    light: { bg: "#FBEAF0", text: "#72243E" },
+    dark: { bg: "#2A0C1A", text: "#ED93B1" },
+  },
+  {
+    light: { bg: "#E1F5EE", text: "#085041" },
+    dark: { bg: "#061A12", text: "#5DCAA5" },
+  },
+  {
+    light: { bg: "#E6F1FB", text: "#0C447C" },
+    dark: { bg: "#06142A", text: "#85B7EB" },
+  },
+];
+
+function getColorIndex(name = "") {
+  let sum = 0;
+  for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
+  return sum % AVATAR_COLORS.length;
+}
+
+function getInitials(name = "") {
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+}
+
 function Chatuser() {
   const { selectedConversation } = useConversation();
   const { onlineUser } = useSocketContext();
   const { theme } = useTheme();
+  const isLight = theme === "light";
+
   const isOnline =
     selectedConversation && onlineUser.includes(selectedConversation._id);
+  const colorIdx = getColorIndex(selectedConversation?.fullName || "");
+  const colors = AVATAR_COLORS[colorIdx][isLight ? "light" : "dark"];
 
-  const getInitials = (name) => {
-    return (
-      name
-        ?.split(" ")
-        .map((n) => n[0])
-        .join("")
-        .toUpperCase() || "U"
-    );
+  const actionBtnStyle = {
+    width: "34px",
+    height: "34px",
+    borderRadius: "10px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: isLight ? "rgba(127,119,221,0.08)" : "rgba(175,169,236,0.08)",
+    border: isLight
+      ? "1px solid rgba(127,119,221,0.15)"
+      : "1px solid rgba(175,169,236,0.1)",
+    cursor: "pointer",
+    transition: "all 0.2s",
   };
 
   return (
-    <div
-      className={`
-      h-16 border-b px-4 flex items-center justify-between transition-all duration-300
-      ${
-        theme === "light"
-          ? "bg-gradient-to-r from-white via-blue-50 to-purple-50 border-blue-200/50 shadow-lg"
-          : "bg-slate-800 border-slate-700"
-      }
-    `}
-    >
+    <div className="h-16 px-5 flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
+        {/* Avatar */}
         <div className="relative">
           <div
-            className={`
-            w-10 h-10 rounded-full overflow-hidden flex items-center justify-center transition-all duration-300
-            ${
-              theme === "light"
-                ? "bg-gradient-to-br from-blue-100 to-purple-100"
-                : "bg-slate-700"
-            }
-          `}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold overflow-hidden"
+            style={{ background: colors.bg, color: colors.text }}
           >
-            {selectedConversation.avatar?.trim() ? (
+            {selectedConversation?.avatar?.trim() ? (
               <img
-                alt={selectedConversation?.fullName}
                 src={`${BASE_URL}/uploads/${selectedConversation.avatar}`}
+                alt={selectedConversation?.fullName}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   e.target.style.display = "none";
-                  e.target.nextSibling.style.display = "flex";
                 }}
               />
-            ) : null}
-            {!selectedConversation.avatar?.trim() && (
-              <div
-                className={`
-                w-full h-full text-sm font-medium flex items-center justify-center
-                ${
-                  theme === "light"
-                    ? "bg-gradient-to-br from-blue-400 to-purple-500 text-white"
-                    : "bg-slate-700 text-white"
-                }
-              `}
-                // style={{ display: "none" }}
-              >
-                {getInitials(selectedConversation.fullName || "")}
-              </div>
+            ) : (
+              getInitials(selectedConversation?.fullName || "")
             )}
           </div>
           {isOnline && (
             <div
-              className={`
-              absolute -bottom-0.5 -right-0.5 w-3 h-3 border-2 rounded-full animate-pulse
-              ${
-                theme === "light"
-                  ? "bg-green-400 border-white shadow-lg shadow-green-400/50"
-                  : "bg-green-500 border-slate-800"
-              }
-            `}
+              className="absolute bottom-0 right-0 w-3 h-3 rounded-full"
+              style={{
+                background: "#3DD68C",
+                border: `2px solid ${isLight ? "rgba(255,252,255,0.95)" : "rgba(18,10,32,0.95)"}`,
+              }}
             />
           )}
         </div>
+
         <div>
           <h2
-            className={`
-            font-semibold transition-colors duration-300
-            ${theme === "light" ? "text-gray-800" : "text-white"}
-          `}
+            className="text-sm font-bold"
+            style={{
+              color: isLight ? "#1A1228" : "#F0EAF8",
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}
           >
             {selectedConversation?.fullName || "Unknown"}
           </h2>
-          <span
-            className={`
-            text-xs px-2 py-1 rounded-full transition-all duration-300
-            ${
-              isOnline
-                ? theme === "light"
-                  ? "bg-green-100 text-green-700 shadow-sm"
-                  : "bg-green-500/20 text-green-400"
-                : theme === "light"
-                ? "bg-gray-100 text-gray-600"
-                : "bg-slate-600 text-slate-300"
-            }
-          `}
+          <p
+            className="text-xs font-medium mt-0.5"
+            style={{
+              color: isOnline ? "#3DD68C" : isLight ? "#9E88B8" : "#7A6A90",
+            }}
           >
-            {isOnline ? "Online" : "Offline"}
-          </span>
+            {isOnline ? "Online now" : "Offline"}
+          </p>
         </div>
       </div>
+
+      {/* Action buttons */}
       <div className="flex items-center gap-2">
         <button
-          className={`
-          p-2 rounded-lg transition-all duration-300 transform hover:scale-105
-          ${
-            theme === "light"
-              ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50 shadow-sm hover:shadow-md"
-              : "text-slate-400 hover:text-white hover:bg-slate-700"
-          }
-        `}
+          style={actionBtnStyle}
+          className="hover:scale-105 transition-transform"
         >
-          <Phone className="w-4 h-4" />
+          <Phone
+            className="w-3.5 h-3.5"
+            style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
+          />
         </button>
         <button
-          className={`
-          p-2 rounded-lg transition-all duration-300 transform hover:scale-105
-          ${
-            theme === "light"
-              ? "text-purple-600 hover:text-purple-700 hover:bg-purple-50 shadow-sm hover:shadow-md"
-              : "text-slate-400 hover:text-white hover:bg-slate-700"
-          }
-        `}
+          style={actionBtnStyle}
+          className="hover:scale-105 transition-transform"
         >
-          <Video className="w-4 h-4" />
+          <Video
+            className="w-3.5 h-3.5"
+            style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
+          />
         </button>
         <button
-          className={`
-          p-2 rounded-lg transition-all duration-300 transform hover:scale-105
-          ${
-            theme === "light"
-              ? "text-gray-600 hover:text-gray-700 hover:bg-gray-50 shadow-sm hover:shadow-md"
-              : "text-slate-400 hover:text-white hover:bg-slate-700"
-          }
-        `}
+          style={actionBtnStyle}
+          className="hover:scale-105 transition-transform"
         >
-          <MoreVertical className="w-4 h-4" />
+          <MoreVertical
+            className="w-3.5 h-3.5"
+            style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
+          />
         </button>
       </div>
     </div>

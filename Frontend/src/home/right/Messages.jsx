@@ -2,16 +2,17 @@
 
 import Message from "./Message";
 import useGetMessage from "../../context/useGetMessage";
-import Loading from "../../components/Loading";
-import { useRef, useEffect } from "react";
 import useGetSocketMessage from "../../context/useGetSocketMessage";
 import useConversation from "../../zustand/userConveration";
 import { useTheme } from "../../context/ThemeContext";
+import { useRef, useEffect } from "react";
+import { MessageCircle } from "lucide-react";
 
 function Messages() {
   const { loading, messages } = useGetMessage();
   const { selectedConversation } = useConversation();
   const { theme } = useTheme();
+  const isLight = theme === "light";
   useGetSocketMessage();
   const lastMsgRef = useRef();
 
@@ -25,89 +26,78 @@ function Messages() {
 
   if (loading) {
     return (
-      <div
-        className={`
-          h-full flex items-center justify-center transition-all duration-500
-          ${
-            theme === "light"
-              ? "bg-gradient-to-b from-white via-blue-50 to-purple-50"
-              : "bg-slate-950/90 backdrop-blur-lg"
-          }
-        `}
-      >
-        <Loading />
+      <div className="h-full flex flex-col justify-end p-5 space-y-3">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className={`flex ${i % 2 === 0 ? "justify-start" : "justify-end"}`}>
+            <div
+              className="rounded-2xl px-4 py-3"
+              style={{
+                width: `${140 + (i * 30) % 80}px`,
+                height: "36px",
+                background: isLight ? "rgba(127,119,221,0.08)" : "rgba(175,169,236,0.06)",
+                animation: "shimmer 1.5s infinite",
+                backgroundSize: "200% 100%",
+              }}
+            />
+          </div>
+        ))}
       </div>
     );
   }
 
   return (
-    <div
-      className={`
-        h-full overflow-y-auto transition-all duration-500 msg
-        scrollbar-thin scrollbar-thumb-rounded-xl
-        ${
-          theme === "light"
-            ? "bg-gradient-to-b from-white via-blue-50 to-purple-50 scrollbar-thumb-blue-300/50 scrollbar-track-transparent"
-            : "bg-slate-950/90 backdrop-blur-lg scrollbar-thumb-slate-700/60 scrollbar-track-slate-900/30"
-        }
-      `}
-    >
-      <div className="p-5 space-y-2">
-        {messages.length === 0 ? (
+    <div className="h-full p-5">
+      {messages.length === 0 ? (
+        <div className="h-full flex items-center justify-center">
           <div
-            className={`
-              text-center py-16 rounded-2xl transition-all duration-500
-              ${
-                theme === "light"
-                  ? "bg-gradient-to-br from-blue-100/70 via-purple-100/70 to-pink-100/70 shadow-inner border border-blue-200/40"
-                  : "bg-slate-800/50 border border-slate-700/50 shadow-inner"
-              }
-            `}
+            className="text-center p-8 rounded-3xl max-w-xs"
+            style={{
+              background: isLight ? "rgba(255,252,255,0.6)" : "rgba(22,12,40,0.6)",
+              backdropFilter: "blur(16px)",
+              border: isLight ? "1px solid rgba(127,119,221,0.12)" : "1px solid rgba(140,100,200,0.1)",
+            }}
           >
             <div
-              className={`
-                w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-5 transition-all duration-500 shadow-lg
-                ${
-                  theme === "light"
-                    ? "bg-gradient-to-br from-blue-400 via-purple-400 to-pink-400 shadow-blue-400/30"
-                    : "bg-gradient-to-br from-blue-700 via-purple-700 to-indigo-800 shadow-blue-900/40"
-                }
-              `}
+              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
+              style={{ background: "linear-gradient(135deg, rgba(127,119,221,0.2), rgba(212,83,126,0.2))" }}
             >
-              <span className="text-2xl text-white drop-shadow-md">👋</span>
+              <MessageCircle className="w-6 h-6" style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }} />
             </div>
             <h3
-              className={`
-                text-lg font-semibold mb-2 tracking-wide transition-colors duration-500
-                ${theme === "light" ? "text-gray-800" : "text-white"}
-              `}
+              className="text-base font-bold mb-2"
+              style={{ color: isLight ? "#1A1228" : "#F0EAF8", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             >
               Say hello to {selectedConversation?.fullName}
             </h3>
-            <p
-              className={`
-                text-sm transition-colors duration-500
-                ${theme === "light" ? "text-gray-600" : "text-slate-400"}
-              `}
-            >
-              Start your conversation by sending a message 💬
+            <p className="text-xs leading-relaxed" style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}>
+              Send a message to start the conversation
             </p>
           </div>
-        ) : (
-          <>
-            {messages.map((message, index) => {
-              const showAvatar =
-                index === 0 ||
-                messages[index - 1]?.senderId !== message.senderId;
-              return (
-                <div key={message._id} ref={lastMsgRef}>
-                  <Message message={message} showAvatar={showAvatar} />
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
+        </div>
+      ) : (
+        <div className="space-y-1">
+          {/* Date chip */}
+          <div className="flex justify-center mb-4">
+            <span
+              className="text-xs px-3 py-1 rounded-full"
+              style={{
+                background: isLight ? "rgba(255,252,255,0.7)" : "rgba(22,12,40,0.7)",
+                backdropFilter: "blur(8px)",
+                border: isLight ? "1px solid rgba(127,119,221,0.12)" : "1px solid rgba(140,100,200,0.1)",
+                color: isLight ? "#9E88B8" : "#7A6A90",
+              }}
+            >
+              Today
+            </span>
+          </div>
+
+          {messages.map((message, index) => (
+            <div key={message._id} ref={index === messages.length - 1 ? lastMsgRef : null}>
+              <Message message={message} />
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

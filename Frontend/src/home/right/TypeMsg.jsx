@@ -4,12 +4,13 @@ import useSendMessage from "../../context/useSendMessage";
 import { useState } from "react";
 import useConversation from "../../zustand/userConveration";
 import { useTheme } from "../../context/ThemeContext";
-import { Paperclip, Hash, Send } from "lucide-react";
+import { Paperclip, Send, Smile } from "lucide-react";
 
 function TypeMsg() {
   const { loading, sendMessages } = useSendMessage();
   const { selectedConversation } = useConversation();
   const { theme } = useTheme();
+  const isLight = theme === "light";
   const [message, setMessage] = useState("");
 
   const handleSubmit = async (e) => {
@@ -26,107 +27,95 @@ function TypeMsg() {
     }
   };
 
+  const canSend = message.trim() && !loading && selectedConversation;
+
   return (
-    <div
-      className={`
-      p-4 border-t transition-all duration-500
-      ${
-        theme === "light"
-          ? "bg-gradient-to-r from-white via-blue-50 to-purple-50 border-blue-200/50"
-          : "bg-slate-900/70 backdrop-blur-md border-slate-700/60"
-      }
-    `}
-    >
-      <form onSubmit={handleSubmit} className="flex items-end gap-3">
-        {/* Left Action Buttons */}
-        <div className="flex items-center gap-2">
+    <div className="p-4">
+      <form onSubmit={handleSubmit} className="flex items-center gap-3">
+        {/* Attach */}
+        <button
+          type="button"
+          disabled={!selectedConversation}
+          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 hover:scale-105 disabled:opacity-40"
+          style={{
+            background: isLight
+              ? "rgba(127,119,221,0.08)"
+              : "rgba(175,169,236,0.06)",
+            border: isLight
+              ? "1px solid rgba(127,119,221,0.15)"
+              : "1px solid rgba(175,169,236,0.1)",
+          }}
+        >
+          <Paperclip
+            className="w-4 h-4"
+            style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
+          />
+        </button>
+
+        {/* Input box */}
+        <div
+          className="flex-1 flex items-center gap-3 rounded-2xl px-4 py-2.5 transition-all duration-200"
+          style={{
+            background: isLight
+              ? "rgba(248,242,255,0.9)"
+              : "rgba(30,18,50,0.9)",
+            border: isLight
+              ? "1px solid rgba(127,119,221,0.18)"
+              : "1px solid rgba(140,100,200,0.15)",
+            backdropFilter: "blur(10px)",
+          }}
+        >
           <button
             type="button"
-            className={`
-              p-2 rounded-xl transition-all duration-300 transform hover:scale-110 active:scale-95
-              ${
-                theme === "light"
-                  ? "text-blue-600 hover:text-blue-700 hover:bg-blue-100 shadow-sm hover:shadow-blue-300/30"
-                  : "text-slate-400 hover:text-blue-400 hover:bg-slate-800 shadow-md shadow-blue-500/10"
-              }
-            `}
-            disabled={!selectedConversation}
+            className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"
           >
-            <Paperclip className="w-4 h-4" />
+            <Smile
+              className="w-4 h-4"
+              style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
+            />
           </button>
 
-          <button
-            type="button"
-            className={`
-              p-2 rounded-xl transition-all duration-300 transform hover:scale-110 active:scale-95
-              ${
-                theme === "light"
-                  ? "text-purple-600 hover:text-purple-700 hover:bg-purple-100 shadow-sm hover:shadow-purple-300/30"
-                  : "text-slate-400 hover:text-purple-400 hover:bg-slate-800 shadow-md shadow-purple-500/10"
-              }
-            `}
-            disabled={!selectedConversation}
-          >
-            <Hash className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Input Field */}
-        <div className="flex-1 relative group">
           <input
             type="text"
             placeholder={
               !selectedConversation
-                ? "Select a conversation to start messaging..."
-                : "Type your message..."
+                ? "Select a conversation..."
+                : "Write a message..."
             }
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={handleKeyPress}
             disabled={loading || !selectedConversation}
-            className={`
-              w-full px-4 py-2.5 rounded-xl text-sm transition-all duration-500 focus:outline-none focus:ring-2 
-              disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.01]
-              ${
-                theme === "light"
-                  ? "bg-white/90 border border-blue-200 text-gray-800 placeholder:text-blue-400 focus:border-blue-400 focus:ring-blue-400/20 shadow-md shadow-blue-500/10"
-                  : "bg-slate-800/70 border border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20 shadow-lg shadow-blue-500/5"
-              }
-            `}
-          />
-          {/* Glow effect on hover */}
-          <div
-            className={`
-              absolute inset-0 rounded-xl transition-all duration-700 pointer-events-none
-              ${
-                theme === "light"
-                  ? "group-hover:shadow-[0_0_15px_rgba(59,130,246,0.2)]"
-                  : "group-hover:shadow-[0_0_20px_rgba(59,130,246,0.25)]"
-              }
-            `}
+            className="flex-1 bg-transparent text-sm outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ color: isLight ? "#1A1228" : "#F0EAF8" }}
           />
         </div>
 
-        {/* Send Button */}
+        {/* Send button */}
         <button
           type="submit"
-          disabled={!message.trim() || loading || !selectedConversation}
-          className={`
-            px-5 py-2.5 rounded-xl font-medium transition-all duration-300 flex items-center gap-2 transform hover:scale-105 active:scale-95
-            disabled:opacity-50 disabled:cursor-not-allowed
-            ${
-              theme === "light"
-                ? "bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 hover:from-blue-600 hover:via-purple-600 hover:to-pink-600 text-white shadow-lg shadow-blue-500/25"
-                : "bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg shadow-blue-700/20"
-            }
-          `}
+          disabled={!canSend}
+          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{
+            background: canSend
+              ? "linear-gradient(135deg, #7F77DD, #D4537E)"
+              : isLight
+                ? "rgba(127,119,221,0.15)"
+                : "rgba(175,169,236,0.08)",
+            boxShadow: canSend ? "0 4px 14px rgba(127,119,221,0.4)" : "none",
+          }}
         >
           {loading ? (
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           ) : (
-            <Send className="w-4 h-4" />
+            <Send
+              className="w-4 h-4"
+              style={{
+                color: canSend ? "#fff" : isLight ? "#9E88B8" : "#7A6A90",
+                marginLeft: "2px",
+              }}
+            />
           )}
-          <span className="hidden sm:inline">Send</span>
         </button>
       </form>
     </div>

@@ -22,11 +22,11 @@ function App() {
                 <Right />
               </div>
             ) : (
-              <Navigate to="/signIn" />
+              <Navigate to="/login" />
             )
           }
         />
-        <Route path="/signIn" element={authUser ? <Navigate to="/" /> : <SignIn />} />
+        <Route path="/login" element={authUser ? <Navigate to="/" /> : <SignIn />} />
         <Route path="/signUp" element={<SignUp />} />
       </Routes>
     </ThemeProvider>
