@@ -4,7 +4,16 @@ import AppError from "../utils/AppError.js";
 
 const secureRoute = async (req, res, next) => {
   try {
-    const token = req.cookies.jwt;
+    // FIX: check both cookie AND Authorization header
+    // Cookie used by browser sessions, header used by fetch with localStorage token
+    let token = req.cookies?.jwt;
+
+    if (!token) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        token = authHeader.split(" ")[1];
+      }
+    }
 
     if (!token) {
       return next(new AppError("Unauthorized: No token provided", 401));
@@ -25,7 +34,6 @@ const secureRoute = async (req, res, next) => {
     req.user = user;
     next();
   } catch (error) {
-    // IMPORTANT: forward error to global handler
     next(error);
   }
 };

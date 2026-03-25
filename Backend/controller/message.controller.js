@@ -49,6 +49,7 @@ export const sendMessage = asyncHandler(async (req, res, next) => {
     receiverId,
     message,
     clientMessageId,
+    conversationId: conversation._id, 
     status: "sent",
   });
 
