@@ -73,7 +73,6 @@ export default function SignIn() {
           ? "bg-gradient-to-br from-purple-50 via-white to-pink-50"
           : "bg-gradient-to-br from-[#0E0A18] via-[#1A1030] to-[#0E0A18]"
       }`}
-      // style={{ height: "100vh" }}
     >
       {/* Background blobs */}
       <div

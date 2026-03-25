@@ -1,43 +1,56 @@
-import React, { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import useConversation from "../zustand/userConveration";
+import toast from "react-hot-toast";
 import BASE_URL from "../config";
 
-function useGetMessage() {
+const useGetMessage = () => {
   const [loading, setLoading] = useState(false);
-  const { messages, setMessage, selectedConversation } = useConversation();
+
+  // FIX: read messages directly from zustand store
+  // Now useSendMessage and useGetSocketMessage appending to the store
+  // will automatically reflect here — single source of truth
+  const { messages, setMessages, selectedConversation } = useConversation();
 
   useEffect(() => {
-    const getMessages = async () => {
-      setLoading(true);
+    if (!selectedConversation?._id) {
+      setMessages([]);
+      return;
+    }
 
-      if (selectedConversation && selectedConversation._id) {
-        try {
-          const token = localStorage.getItem("token"); // or from context/state
-          const res = await fetch(
-            `${BASE_URL}/user/message/get/${selectedConversation._id}`,
-            {
-              method: "GET",
-              headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-              },
-              credentials: "include",
-            }
-          );
-          const data = await res.json();
-          setMessage(data);
-        } catch (error) {
-          console.error("Error in getting messages", error);
-        } finally {
-          setLoading(false);
+    const fetchMessages = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("token");
+
+        const res = await fetch(
+          `${BASE_URL}/user/messages/${selectedConversation._id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            credentials: "include",
+          },
+        );
+
+        const json = await res.json();
+
+        if (!res.ok) {
+          throw new Error(json.message || "Failed to fetch messages");
         }
+
+        // Write into zustand store — Messages.jsx will reactively update
+        setMessages(Array.isArray(json.data) ? json.data : []);
+      } catch (error) {
+        toast.error(error.message || "Could not load messages");
+        setMessages([]);
+      } finally {
+        setLoading(false);
       }
     };
 
-    getMessages();
-  }, [selectedConversation, setMessage]);
+    fetchMessages();
+  }, [selectedConversation?._id]);
 
+  // Return zustand messages — same array useSendMessage writes to
   return { loading, messages };
-}
+};
 
 export default useGetMessage;

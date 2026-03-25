@@ -8,7 +8,8 @@ function Message({ message }) {
   const [authUser] = useAuth();
   const { theme } = useTheme();
   const isLight = theme === "light";
-  const itsMe = message.senderId === authUser?.user?._id;
+  // ✅ convert both to string before comparing
+  const itsMe = message.senderId?.toString() === authUser?.user?._id?.toString();
 
   const createdAt = new Date(message.createdAt);
   const formattedTime = createdAt.toLocaleTimeString([], {

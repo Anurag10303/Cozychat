@@ -10,7 +10,7 @@ function useGetAllUsers() {
     const getUsers = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${BASE_URL}/user/allUsers`, {
+        const response = await fetch(`${BASE_URL}/user/users`, {
           method: "GET",
           headers: {
             // No need to set Authorization manually; cookie handles it
@@ -24,8 +24,8 @@ function useGetAllUsers() {
         }
 
         const data = await response.json();
-        if (Array.isArray(data)) {
-          setAllUsers(data);
+        if (Array.isArray(data.data)) {
+          setAllUsers(data.data);
         } else {
           console.error("Unexpected data format, expected array, got:", data);
           setAllUsers([]);
