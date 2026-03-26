@@ -5,33 +5,38 @@ import sound from "../assets/Order-up-bell-sound-effect.mp3";
 
 const useGetSocketMessage = () => {
   const { socket } = useSocketContext();
-  // FIX: renamed setMessage → setMessages (plural, matches store)
-  const { messages, setMessages } = useConversation();
+  const { messages, setMessages, updateMessageStatus } = useConversation();
 
+  // ✅ New incoming messages
   useEffect(() => {
-    // FIX: guard — if socket not ready, do nothing
     if (!socket) return;
 
     const handleNewMessage = (newMessage) => {
-      // Play notification sound
       try {
         const notification = new Audio(sound);
         notification.play();
       } catch (err) {
         console.warn("Audio play failed:", err);
       }
-
-      // FIX: append incoming socket message to existing messages
       setMessages([...messages, newMessage]);
     };
 
     socket.on("newMessage", handleNewMessage);
-
-    // Cleanup — remove only this specific handler
-    return () => {
-      socket.off("newMessage", handleNewMessage);
-    };
+    return () => socket.off("newMessage", handleNewMessage);
   }, [socket, messages, setMessages]);
+
+  // ✅ Status updates — backend always emits "messageStatusUpdate" with { messageId, status }
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleStatusUpdate = ({ messageId, status }) => {
+      console.log("📨 Status update:", messageId, status);
+      updateMessageStatus(messageId, status);
+    };
+
+    socket.on("messageStatusUpdate", handleStatusUpdate);
+    return () => socket.off("messageStatusUpdate", handleStatusUpdate);
+  }, [socket, updateMessageStatus]);
 };
 
 export default useGetSocketMessage;

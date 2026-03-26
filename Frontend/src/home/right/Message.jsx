@@ -9,7 +9,8 @@ function Message({ message }) {
   const { theme } = useTheme();
   const isLight = theme === "light";
   // ✅ convert both to string before comparing
-  const itsMe = message.senderId?.toString() === authUser?.user?._id?.toString();
+  const itsMe =
+    message.senderId?.toString() === authUser?.user?._id?.toString();
 
   const createdAt = new Date(message.createdAt);
   const formattedTime = createdAt.toLocaleTimeString([], {
@@ -19,25 +20,36 @@ function Message({ message }) {
 
   const getStatusIcon = () => {
     if (!itsMe) return null;
-    if (message.status === "seen") {
-      return <CheckCheck className="w-3 h-3" style={{ color: "#AFA9EC" }} />;
-    }
-    if (message.status === "delivered") {
-      return (
-        <CheckCheck
-          className="w-3 h-3"
-          style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
-        />
-      );
-    }
-    return (
-      <Check
-        className="w-3 h-3"
-        style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
-      />
-    );
-  };
 
+    switch (message.status) {
+      case "sent":
+        return (
+          <Check
+            className="w-3 h-3"
+            style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
+          />
+        );
+
+      case "delivered":
+        return (
+          <CheckCheck
+            className="w-3 h-3"
+            style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
+          />
+        );
+
+      case "seen":
+        return (
+          <CheckCheck
+            className="w-3 h-3"
+            style={{ color: "#4FC3F7" }} // 🔥 blue for seen
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
   return (
     <div
       className={`flex mb-2 ${itsMe ? "justify-end" : "justify-start"}`}

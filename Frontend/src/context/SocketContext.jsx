@@ -16,10 +16,9 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     if (authUser) {
-      // 🔥 Create socket (use auth, NOT query)
       const newSocket = io(BASE_URL, {
         auth: {
-          token: authUser.token, // 🔥 must match backend
+          token: authUser.token,
         },
         reconnection: true,
         reconnectionAttempts: 5,
@@ -28,22 +27,29 @@ export const SocketProvider = ({ children }) => {
 
       setSocket(newSocket);
 
-      // 🔥 Online users listener
       newSocket.on("getOnlineUsers", (users) => {
         setOnlineUser(users);
       });
 
-      // 🔥 Debug (optional but useful)
       newSocket.on("connect", () => {
-        console.log("Socket connected:", newSocket.id);
+        console.log("✅ Socket connected:", newSocket.id);
+
+        // ✅ When user reconnects (comes back online), tell the backend
+        // so it can mark pending messages as delivered and notify senders
+        newSocket.emit("userReconnected", { userId: authUser.user?._id });
       });
 
       newSocket.on("disconnect", () => {
-        console.log("Socket disconnected");
+        console.log("❌ Socket disconnected");
       });
 
-      // 🔥 Cleanup
+      // ✅ Debug — log all events during development, remove in production
+      newSocket.onAny((event, ...args) => {
+        console.log("📡 Socket event:", event, args);
+      });
+
       return () => {
+        newSocket.offAny();
         newSocket.off("getOnlineUsers");
         newSocket.disconnect();
       };

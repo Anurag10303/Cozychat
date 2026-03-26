@@ -9,7 +9,7 @@ import AppError from "../utils/AppError.js";
 const app = express();
 const server = http.createServer(app);
 
-// 🔥 userId -> Set of socketIds
+// userId -> Set of socketIds
 const users = {};
 
 const io = new Server(server, {
@@ -19,10 +19,8 @@ const io = new Server(server, {
   },
 });
 
-// 🔥 Get all online users
 export const getOnlineUsers = () => Object.keys(users);
 
-// 🔥 Get receiver sockets
 export const getReceiverSocketId = (receiverId) => {
   return users[receiverId] ? Array.from(users[receiverId]) : [];
 };
@@ -32,14 +30,10 @@ io.on("connection", (socket) => {
 
   let userId;
 
-  // 🔥 AUTHENTICATION
+  // ✅ AUTHENTICATION
   try {
     const token = socket.handshake.auth.token;
-
-    if (!token) {
-      throw new Error("No token provided");
-    }
-
+    if (!token) throw new Error("No token provided");
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     userId = decoded.userId;
   } catch (error) {
@@ -48,80 +42,128 @@ io.on("connection", (socket) => {
     return;
   }
 
-  // 🔥 ADD USER
-  if (!users[userId]) {
-    users[userId] = new Set();
-  }
-
+  // ✅ ADD USER
+  if (!users[userId]) users[userId] = new Set();
   users[userId].add(socket.id);
 
-  console.log("Connected users:", users);
-
-  // 🔥 EMIT ONLINE USERS
   io.emit("getOnlineUsers", getOnlineUsers());
 
-  // 🔥 DISCONNECT
+  // ✅ On connect — mark all undelivered messages sent TO this user as "delivered"
+  // and notify each sender so their tick updates to double grey
+  (async () => {
+    try {
+      const undelivered = await Message.find({
+        receiverId: userId,
+        status: "sent",
+      });
+
+      if (undelivered.length === 0) return;
+
+      // Bulk update in DB
+      const messageIds = undelivered.map((m) => m._id);
+      await Message.updateMany(
+        { _id: { $in: messageIds } },
+        { $set: { status: "delivered" } },
+      );
+
+      // Notify each sender — group by senderId to reduce socket calls
+      const bySender = {};
+      undelivered.forEach((msg) => {
+        const sid = msg.senderId.toString();
+        if (!bySender[sid]) bySender[sid] = [];
+        bySender[sid].push(msg._id.toString());
+      });
+
+      Object.entries(bySender).forEach(([senderId, ids]) => {
+        const senderSockets = getReceiverSocketId(senderId);
+        ids.forEach((messageId) => {
+          senderSockets.forEach((socketId) => {
+            // ✅ Emit correct shape: { messageId, status }
+            io.to(socketId).emit("messageStatusUpdate", {
+              messageId,
+              status: "delivered",
+            });
+          });
+        });
+      });
+    } catch (err) {
+      console.log("Error marking delivered on connect:", err.message);
+    }
+  })();
+
+  // ✅ markSeen — mark ALL unseen messages in a conversation as seen at once
+  // Frontend should emit this when user opens/views a conversation
+  socket.on("markSeen", async ({ conversationId, senderId }) => {
+    try {
+      if (!conversationId || !senderId) return;
+
+      // Find all unseen messages sent by the other user in this conversation
+      const unseenMessages = await Message.find({
+        conversationId,
+        senderId,
+        receiverId: userId,
+        status: { $ne: "seen" },
+      });
+
+      if (unseenMessages.length === 0) return;
+
+      const messageIds = unseenMessages.map((m) => m._id);
+
+      // Bulk update
+      await Message.updateMany(
+        { _id: { $in: messageIds } },
+        { $set: { status: "seen" } },
+      );
+
+      // Notify sender for each message — their tick turns blue
+      const senderSockets = getReceiverSocketId(senderId);
+      unseenMessages.forEach((msg) => {
+        senderSockets.forEach((socketId) => {
+          // ✅ Emit correct shape: { messageId, status }
+          io.to(socketId).emit("messageStatusUpdate", {
+            messageId: msg._id.toString(),
+            status: "seen",
+          });
+        });
+      });
+    } catch (err) {
+      console.log("Error marking seen:", err.message);
+    }
+  });
+
+  // ✅ TYPING
+  socket.on("typing", ({ receiverId }) => {
+    const receiverSockets = getReceiverSocketId(receiverId);
+    receiverSockets.forEach((id) => {
+      io.to(id).emit("typing", { senderId: userId });
+    });
+  });
+
+  socket.on("stopTyping", ({ receiverId }) => {
+    const receiverSockets = getReceiverSocketId(receiverId);
+    receiverSockets.forEach((id) => {
+      io.to(id).emit("stopTyping", { senderId: userId });
+    });
+  });
+
+  // ✅ DISCONNECT
   socket.on("disconnect", async () => {
     console.log("User disconnected:", socket.id);
 
     if (users[userId]) {
       users[userId].delete(socket.id);
 
-      // 🔥 If no active sockets → user offline
       if (users[userId].size === 0) {
         delete users[userId];
-
-        // 🔥 Update last seen in DB
         try {
-          await User.findByIdAndUpdate(userId, {
-            lastSeen: new Date(),
-          });
+          await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
         } catch (err) {
           console.log("Error updating lastSeen:", err.message);
         }
       }
     }
+
     io.emit("getOnlineUsers", getOnlineUsers());
-  });
-  socket.on("markSeen", async (messageId) => {
-    try {
-      const message = await Message.findById(messageId);
-      if (!message) return;
-
-      // ✅ use userId from socket auth, not req
-      if (message.receiverId.toString() !== userId.toString()) {
-        throw new AppError("Not authorized", 403);
-      }
-
-      message.status = "seen";
-      await message.save();
-
-      const senderSockets = getReceiverSocketId(message.senderId);
-      senderSockets.forEach((id) => {
-        io.to(id).emit("messageSeen", messageId);
-      });
-    } catch (err) {
-      console.log("Error marking seen:", err.message);
-    }
-  });
-  socket.on("typing", ({ receiverId }) => {
-    const receiverSockets = getReceiverSocketId(receiverId);
-
-    receiverSockets.forEach((id) => {
-      io.to(id).emit("typing", {
-        senderId: userId,
-      });
-    });
-  });
-
-  socket.on("stopTyping", ({ receiverId }) => {
-    const receiverSockets = getReceiverSocketId(receiverId);
-
-    receiverSockets.forEach((id) => {
-      io.to(id).emit("stopTyping", {
-        senderId: userId,
-      });
-    });
   });
 });
 

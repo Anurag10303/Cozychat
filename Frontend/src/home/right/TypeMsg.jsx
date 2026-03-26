@@ -1,7 +1,8 @@
 "use client";
 
 import useSendMessage from "../../context/useSendMessage";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useSocketContext } from "../../context/SocketContext";
 import useConversation from "../../zustand/userConveration";
 import { useTheme } from "../../context/ThemeContext";
 import { Paperclip, Send, Smile } from "lucide-react";
@@ -25,6 +26,27 @@ function TypeMsg() {
       e.preventDefault();
       handleSubmit(e);
     }
+  };
+
+  const typingTimeoutRef = useRef(null);
+  const { socket } = useSocketContext();
+  
+  const handleChange = (e) => {
+    setMessage(e.target.value);
+
+    if (!socket) return;
+
+    // 🔥 emit typing
+    socket.emit("typing", { receiverId: selectedConversation._id });
+
+    // 🔥 debounce stopTyping
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit("stopTyping", { receiverId: selectedConversation._id });
+    }, 1000);
   };
 
   const canSend = message.trim() && !loading && selectedConversation;
@@ -83,7 +105,7 @@ function TypeMsg() {
                 : "Write a message..."
             }
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleChange}
             onKeyPress={handleKeyPress}
             disabled={loading || !selectedConversation}
             className="flex-1 bg-transparent text-sm outline-none disabled:opacity-50 disabled:cursor-not-allowed"

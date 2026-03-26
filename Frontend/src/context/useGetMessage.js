@@ -5,10 +5,6 @@ import BASE_URL from "../config";
 
 const useGetMessage = () => {
   const [loading, setLoading] = useState(false);
-
-  // FIX: read messages directly from zustand store
-  // Now useSendMessage and useGetSocketMessage appending to the store
-  // will automatically reflect here — single source of truth
   const { messages, setMessages, selectedConversation } = useConversation();
 
   useEffect(() => {
@@ -36,7 +32,8 @@ const useGetMessage = () => {
           throw new Error(json.message || "Failed to fetch messages");
         }
 
-        // Write into zustand store — Messages.jsx will reactively update
+        // ✅ Messages fetched from DB already have correct status
+        // so ticks will render correctly on load too
         setMessages(Array.isArray(json.data) ? json.data : []);
       } catch (error) {
         toast.error(error.message || "Could not load messages");
@@ -49,7 +46,6 @@ const useGetMessage = () => {
     fetchMessages();
   }, [selectedConversation?._id]);
 
-  // Return zustand messages — same array useSendMessage writes to
   return { loading, messages };
 };
 

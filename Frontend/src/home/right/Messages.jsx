@@ -5,24 +5,88 @@ import useGetMessage from "../../context/useGetMessage";
 import useGetSocketMessage from "../../context/useGetSocketMessage";
 import useConversation from "../../zustand/userConveration";
 import { useTheme } from "../../context/ThemeContext";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { MessageCircle } from "lucide-react";
+import { useSocketContext } from "../../context/SocketContext";
+
+const getDateLabel = (dateStr) => {
+  if (!dateStr) return "Today";
+  const date = new Date(dateStr);
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  if (date.toDateString() === today.toDateString()) return "Today";
+  if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
+  return date.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
 
 function Messages() {
   const { loading, messages = [] } = useGetMessage();
   const { selectedConversation } = useConversation();
+  const { socket } = useSocketContext();
   const { theme } = useTheme();
   const isLight = theme === "light";
   useGetSocketMessage();
-  const lastMsgRef = useRef();
 
+  const lastMsgRef = useRef();
+  const [typingUser, setTypingUser] = useState(null);
+
+  // Scroll to bottom when messages change or typing indicator appears/disappears
   useEffect(() => {
-    setTimeout(() => {
-      if (lastMsgRef.current) {
-        lastMsgRef.current.scrollIntoView({ behavior: "smooth" });
+    lastMsgRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, typingUser]);
+
+  // Typing indicator listeners
+  useEffect(() => {
+    if (!socket || !selectedConversation) return;
+
+    const typingTimeoutRef = { current: null };
+
+    const handleTyping = ({ senderId }) => {
+      if (senderId?.toString() === selectedConversation?._id?.toString()) {
+        setTypingUser(senderId);
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setTypingUser(null), 1500);
       }
-    }, 100);
-  }, [messages]);
+    };
+
+    const handleStopTyping = ({ senderId }) => {
+      if (senderId?.toString() === selectedConversation?._id?.toString())
+        setTypingUser(null);
+    };
+
+    socket.on("typing", handleTyping);
+    socket.on("stopTyping", handleStopTyping);
+
+    return () => {
+      socket.off("typing", handleTyping);
+      socket.off("stopTyping", handleStopTyping);
+      clearTimeout(typingTimeoutRef.current);
+    };
+  }, [socket, selectedConversation]);
+
+  // Emit markSeen when user opens a conversation with unread messages
+  useEffect(() => {
+    if (!socket || !selectedConversation || messages.length === 0) return;
+
+    const hasUnread = messages.some(
+      (msg) =>
+        msg.senderId?.toString() === selectedConversation._id?.toString() &&
+        msg.status !== "seen",
+    );
+
+    if (!hasUnread) return;
+
+    socket.emit("markSeen", {
+      conversationId: selectedConversation.conversationId,
+      senderId: selectedConversation._id,
+    });
+  }, [messages, selectedConversation, socket]);
 
   if (loading) {
     return (
@@ -33,15 +97,10 @@ function Messages() {
             className={`flex ${i % 2 === 0 ? "justify-start" : "justify-end"}`}
           >
             <div
-              className="rounded-2xl px-4 py-3"
+              className="rounded-2xl px-4 py-3 skeleton-shimmer"
               style={{
                 width: `${140 + ((i * 30) % 80)}px`,
                 height: "36px",
-                background: isLight
-                  ? "rgba(127,119,221,0.08)"
-                  : "rgba(175,169,236,0.06)",
-                animation: "shimmer 1.5s infinite",
-                backgroundSize: "200% 100%",
               }}
             />
           </div>
@@ -97,7 +156,7 @@ function Messages() {
         </div>
       ) : (
         <div className="space-y-1">
-          {/* Date chip */}
+          {/* Dynamic date chip */}
           <div className="flex justify-center mb-4">
             <span
               className="text-xs px-3 py-1 rounded-full"
@@ -112,7 +171,7 @@ function Messages() {
                 color: isLight ? "#9E88B8" : "#7A6A90",
               }}
             >
-              Today
+              {getDateLabel(messages[0]?.createdAt)}
             </span>
           </div>
 
@@ -124,6 +183,37 @@ function Messages() {
               <Message message={message} />
             </div>
           ))}
+
+          {/* Typing indicator */}
+          {typingUser && (
+            <div className="flex justify-start mt-1 pl-1" ref={lastMsgRef}>
+              <div
+                className="px-4 py-2.5"
+                style={{
+                  background: isLight
+                    ? "rgba(255,255,255,0.88)"
+                    : "rgba(30,20,48,0.9)",
+                  border: isLight
+                    ? "1px solid rgba(127,80,160,0.1)"
+                    : "1px solid rgba(140,100,200,0.14)",
+                  borderRadius: "18px 18px 18px 4px",
+                  backdropFilter: "blur(12px)",
+                }}
+              >
+                <div className="flex gap-1 items-center h-4">
+                  {[0, 1, 2].map((i) => (
+                    <span
+                      key={i}
+                      className="typing-dot w-1.5 h-1.5 rounded-full block"
+                      style={{
+                        background: isLight ? "#9E88B8" : "#7A6A90",
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
