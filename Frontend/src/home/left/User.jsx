@@ -1,4 +1,3 @@
-// User.jsx
 "use client";
 
 import useConversation from "../../zustand/userConveration.js";
@@ -55,6 +54,8 @@ export function User({ user }) {
   const colorIdx = getColorIndex(user.fullName);
   const colors = AVATAR_COLORS[colorIdx][isLight ? "light" : "dark"];
 
+  const unread = user.unreadCount || 0;
+
   return (
     <div
       className="flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all duration-200"
@@ -99,6 +100,7 @@ export function User({ user }) {
           )}
         </div>
 
+        {/* Online dot */}
         {isOnline && (
           <div
             className="absolute bottom-0 right-0 w-3 h-3 rounded-full"
@@ -119,20 +121,40 @@ export function User({ user }) {
           >
             {user.fullName}
           </h3>
-          {isOnline && (
-            <span
-              className="text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0"
-              style={{
-                background: isLight
-                  ? "rgba(61,214,140,0.12)"
-                  : "rgba(61,214,140,0.1)",
-                color: "#3DD68C",
-              }}
-            >
-              Online
-            </span>
-          )}
+
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {/* ✅ Unread badge — only show when not selected and has unread */}
+            {!isSelected && unread > 0 && (
+              <span
+                className="text-xs font-bold min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center"
+                style={{
+                  background: "linear-gradient(135deg, #7F77DD, #D4537E)",
+                  color: "#fff",
+                  fontSize: "10px",
+                  lineHeight: 1,
+                }}
+              >
+                {unread > 99 ? "99+" : unread}
+              </span>
+            )}
+
+            {/* Online pill */}
+            {isOnline && (
+              <span
+                className="text-xs font-medium px-2 py-0.5 rounded-full"
+                style={{
+                  background: isLight
+                    ? "rgba(61,214,140,0.12)"
+                    : "rgba(61,214,140,0.1)",
+                  color: "#3DD68C",
+                }}
+              >
+                Online
+              </span>
+            )}
+          </div>
         </div>
+
         <p
           className="text-xs truncate mt-0.5"
           style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}

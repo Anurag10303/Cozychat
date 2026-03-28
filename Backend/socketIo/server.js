@@ -4,12 +4,10 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
-import AppError from "../utils/AppError.js";
 
 const app = express();
 const server = http.createServer(app);
 
-// userId -> Set of socketIds
 const users = {};
 
 const io = new Server(server, {
@@ -30,7 +28,6 @@ io.on("connection", (socket) => {
 
   let userId;
 
-  // ✅ AUTHENTICATION
   try {
     const token = socket.handshake.auth.token;
     if (!token) throw new Error("No token provided");
@@ -42,14 +39,11 @@ io.on("connection", (socket) => {
     return;
   }
 
-  // ✅ ADD USER
   if (!users[userId]) users[userId] = new Set();
   users[userId].add(socket.id);
-
   io.emit("getOnlineUsers", getOnlineUsers());
 
-  // ✅ On connect — mark all undelivered messages sent TO this user as "delivered"
-  // and notify each sender so their tick updates to double grey
+  // ✅ On connect — mark all "sent" messages sent TO this user as "delivered"
   (async () => {
     try {
       const undelivered = await Message.find({
@@ -59,14 +53,12 @@ io.on("connection", (socket) => {
 
       if (undelivered.length === 0) return;
 
-      // Bulk update in DB
       const messageIds = undelivered.map((m) => m._id);
       await Message.updateMany(
         { _id: { $in: messageIds } },
         { $set: { status: "delivered" } },
       );
 
-      // Notify each sender — group by senderId to reduce socket calls
       const bySender = {};
       undelivered.forEach((msg) => {
         const sid = msg.senderId.toString();
@@ -78,7 +70,6 @@ io.on("connection", (socket) => {
         const senderSockets = getReceiverSocketId(senderId);
         ids.forEach((messageId) => {
           senderSockets.forEach((socketId) => {
-            // ✅ Emit correct shape: { messageId, status }
             io.to(socketId).emit("messageStatusUpdate", {
               messageId,
               status: "delivered",
@@ -91,35 +82,35 @@ io.on("connection", (socket) => {
     }
   })();
 
-  // ✅ markSeen — mark ALL unseen messages in a conversation as seen at once
-  // Frontend should emit this when user opens/views a conversation
-  socket.on("markSeen", async ({ conversationId, senderId }) => {
+  // ✅ markSeen — fixed to use senderId + receiverId (no conversationId needed)
+  // Frontend emits: { senderId: selectedConversation._id }
+  socket.on("markSeen", async ({ senderId }) => {
     try {
-      if (!conversationId || !senderId) return;
+      if (!senderId) {
+        return;
+      }
 
-      // Find all unseen messages sent by the other user in this conversation
+      // Find all unseen messages from senderId to the current user (userId)
       const unseenMessages = await Message.find({
-        conversationId,
         senderId,
         receiverId: userId,
-        status: { $ne: "seen" },
+        status: { $in: ["sent", "delivered"] },
       });
 
       if (unseenMessages.length === 0) return;
 
       const messageIds = unseenMessages.map((m) => m._id);
 
-      // Bulk update
+      // ✅ Bulk update to "seen" in DB
       await Message.updateMany(
         { _id: { $in: messageIds } },
         { $set: { status: "seen" } },
       );
 
-      // Notify sender for each message — their tick turns blue
+      // ✅ Notify sender — their ticks turn blue
       const senderSockets = getReceiverSocketId(senderId);
       unseenMessages.forEach((msg) => {
         senderSockets.forEach((socketId) => {
-          // ✅ Emit correct shape: { messageId, status }
           io.to(socketId).emit("messageStatusUpdate", {
             messageId: msg._id.toString(),
             status: "seen",
@@ -127,11 +118,11 @@ io.on("connection", (socket) => {
         });
       });
     } catch (err) {
-      console.log("Error marking seen:", err.message);
+      console.log("Error in markSeen:", err.message);
     }
   });
 
-  // ✅ TYPING
+  // Typing
   socket.on("typing", ({ receiverId }) => {
     const receiverSockets = getReceiverSocketId(receiverId);
     receiverSockets.forEach((id) => {
@@ -146,7 +137,7 @@ io.on("connection", (socket) => {
     });
   });
 
-  // ✅ DISCONNECT
+  // Disconnect
   socket.on("disconnect", async () => {
     console.log("User disconnected:", socket.id);
 

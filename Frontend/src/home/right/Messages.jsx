@@ -154,8 +154,9 @@ function Messages() {
 
     if (!hasUnread) return;
 
+    // ✅ Only send senderId — backend uses senderId + receiverId (from socket auth)
+    // conversationId was always undefined since user objects don't carry it
     socket.emit("markSeen", {
-      conversationId: selectedConversation.conversationId,
       senderId: selectedConversation._id,
     });
   }, [messages, selectedConversation, socket]);
