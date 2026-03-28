@@ -26,7 +26,13 @@ const getDateLabel = (dateStr) => {
 };
 
 function Messages() {
-  const { loading, messages = [] } = useGetMessage();
+  const {
+    loading,
+    isFetchingMore,
+    hasMore,
+    messages = [],
+    fetchOlderMessages,
+  } = useGetMessage();
   const { selectedConversation } = useConversation();
   const { socket } = useSocketContext();
   const { theme } = useTheme();
@@ -34,12 +40,78 @@ function Messages() {
   useGetSocketMessage();
 
   const lastMsgRef = useRef();
+  const topRef = useRef();
+  const containerRef = useRef();
   const [typingUser, setTypingUser] = useState(null);
 
-  // Scroll to bottom when messages change or typing indicator appears/disappears
+  // ✅ Track whether this is the initial load for this conversation
+  const isInitialLoad = useRef(true);
+
+  // ✅ Reset initial load flag when conversation changes
   useEffect(() => {
-    lastMsgRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typingUser]);
+    isInitialLoad.current = true;
+  }, [selectedConversation?._id]);
+
+  // ✅ Scroll logic:
+  // - On initial load → instant jump to bottom (no smooth, no animation lag)
+  // - On new socket message → smooth scroll to bottom
+  // - On pagination prepend (fetchOlderMessages) → do NOT scroll at all
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    if (isInitialLoad.current) {
+      // Use requestAnimationFrame to wait for DOM paint before scrolling
+      requestAnimationFrame(() => {
+        lastMsgRef.current?.scrollIntoView({ behavior: "instant" });
+        isInitialLoad.current = false;
+      });
+    }
+  }, [messages]);
+
+  // ✅ Separate effect — smooth scroll only for new incoming/outgoing messages
+  // We detect "new message" by checking if the last message just changed
+  const prevLastMsgId = useRef(null);
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const lastMsg = messages[messages.length - 1];
+    if (!lastMsg) return;
+
+    const lastId = lastMsg._id ?? lastMsg.clientMessageId;
+
+    // Only smooth scroll if a genuinely new message appeared at the bottom
+    if (!isInitialLoad.current && lastId !== prevLastMsgId.current) {
+      lastMsgRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+
+    prevLastMsgId.current = lastId;
+  }, [messages]);
+
+  // ✅ IntersectionObserver — fetch older messages when user scrolls to top
+  useEffect(() => {
+    if (!topRef.current || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      async ([entry]) => {
+        if (!entry.isIntersecting || isFetchingMore) return;
+
+        const container = containerRef.current;
+        const prevScrollHeight = container?.scrollHeight ?? 0;
+
+        await fetchOlderMessages();
+
+        // Restore scroll position so view doesn't jump to top after prepend
+        requestAnimationFrame(() => {
+          if (container) {
+            container.scrollTop = container.scrollHeight - prevScrollHeight;
+          }
+        });
+      },
+      { threshold: 1.0 },
+    );
+
+    observer.observe(topRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, isFetchingMore, fetchOlderMessages]);
 
   // Typing indicator listeners
   useEffect(() => {
@@ -48,7 +120,7 @@ function Messages() {
     const typingTimeoutRef = { current: null };
 
     const handleTyping = ({ senderId }) => {
-      if (senderId?.toString() === selectedConversation?._id?.toString()) {
+      if (senderId?.toString() === selectedConversation._id?.toString()) {
         setTypingUser(senderId);
         clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = setTimeout(() => setTypingUser(null), 1500);
@@ -56,7 +128,7 @@ function Messages() {
     };
 
     const handleStopTyping = ({ senderId }) => {
-      if (senderId?.toString() === selectedConversation?._id?.toString())
+      if (senderId?.toString() === selectedConversation._id?.toString())
         setTypingUser(null);
     };
 
@@ -97,10 +169,15 @@ function Messages() {
             className={`flex ${i % 2 === 0 ? "justify-start" : "justify-end"}`}
           >
             <div
-              className="rounded-2xl px-4 py-3 skeleton-shimmer"
+              className="rounded-2xl px-4 py-3"
               style={{
                 width: `${140 + ((i * 30) % 80)}px`,
                 height: "36px",
+                background: isLight
+                  ? "rgba(127,119,221,0.08)"
+                  : "rgba(175,169,236,0.06)",
+                animation: "shimmer 1.5s infinite",
+                backgroundSize: "200% 100%",
               }}
             />
           </div>
@@ -110,7 +187,7 @@ function Messages() {
   }
 
   return (
-    <div className="h-full p-5">
+    <div ref={containerRef} className="h-full p-5 overflow-y-auto msg-scroll">
       {messages.length === 0 ? (
         <div className="h-full flex items-center justify-center">
           <div
@@ -156,6 +233,24 @@ function Messages() {
         </div>
       ) : (
         <div className="space-y-1">
+          {/* Top sentinel — IntersectionObserver watches this for pagination */}
+          <div ref={topRef} className="h-1" />
+
+          {/* Spinner while loading older messages */}
+          {isFetchingMore && (
+            <div className="flex justify-center py-3">
+              <div
+                className="w-4 h-4 border-2 rounded-full animate-spin"
+                style={{
+                  borderColor: isLight
+                    ? "rgba(127,119,221,0.3)"
+                    : "rgba(175,169,236,0.3)",
+                  borderTopColor: isLight ? "#7F77DD" : "#AFA9EC",
+                }}
+              />
+            </div>
+          )}
+
           {/* Dynamic date chip */}
           <div className="flex justify-center mb-4">
             <span

@@ -5,16 +5,30 @@ const useConversation = create((set) => ({
   setSelectedConversation: (selectedConversation) =>
     set({ selectedConversation }),
   messages: [],
-  setMessages: (messages) => set({ messages }),
 
-  // ✅ Patch a single message's status in place without replacing the whole array
+  // ✅ Supports both direct value and updater function: setMessages([]) or setMessages(prev => [...prev, msg])
+  setMessages: (messagesOrUpdater) =>
+    set((state) => ({
+      messages: Array.isArray(messagesOrUpdater)
+        ? messagesOrUpdater
+        : typeof messagesOrUpdater === "function"
+          ? (() => {
+              const result = messagesOrUpdater(state.messages);
+              return Array.isArray(result) ? result : state.messages;
+            })()
+          : state.messages,
+    })),
+
+  // ✅ Patch a single message status in place
   updateMessageStatus: (messageId, status) =>
     set((state) => ({
-      messages: state.messages.map((msg) =>
-        msg._id?.toString() === messageId?.toString()
-          ? { ...msg, status }
-          : msg
-      ),
+      messages: Array.isArray(state.messages)
+        ? state.messages.map((msg) =>
+            msg._id?.toString() === messageId?.toString()
+              ? { ...msg, status }
+              : msg,
+          )
+        : [],
     })),
 }));
 
