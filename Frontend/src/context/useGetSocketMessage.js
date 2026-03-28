@@ -5,9 +5,12 @@ import sound from "../assets/Order-up-bell-sound-effect.mp3";
 
 const useGetSocketMessage = () => {
   const { socket } = useSocketContext();
-  const { messages, setMessages, updateMessageStatus } = useConversation();
+  const { appendMessage, updateMessageStatus } = useConversation();
 
-  // ✅ New incoming messages
+  // ✅ New incoming messages — uses appendMessage which handles:
+  // - dedup by _id
+  // - dedup by clientMessageId
+  // - merge if optimistic message already exists
   useEffect(() => {
     if (!socket) return;
 
@@ -18,14 +21,17 @@ const useGetSocketMessage = () => {
       } catch (err) {
         console.warn("Audio play failed:", err);
       }
-      setMessages([...messages, newMessage]);
+
+      // ✅ appendMessage instead of setMessages([...messages, newMessage])
+      // This avoids the stale closure bug AND handles dedup/merge
+      appendMessage(newMessage);
     };
 
     socket.on("newMessage", handleNewMessage);
     return () => socket.off("newMessage", handleNewMessage);
-  }, [socket, messages, setMessages]);
+  }, [socket, appendMessage]);
 
-  // ✅ Status updates — backend always emits "messageStatusUpdate" with { messageId, status }
+  // ✅ Status updates
   useEffect(() => {
     if (!socket) return;
 

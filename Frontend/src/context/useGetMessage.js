@@ -33,13 +33,13 @@ const useGetMessage = () => {
         );
 
         const json = await res.json();
-        console.log("API response:", json);
         if (!res.ok)
           throw new Error(json.message || "Failed to fetch messages");
 
-        setMessages(json.data);
-        setHasMore(json.hasNextPage);
-        setPage(1); // reset on conversation switch
+        // setMessages runs dedup internally via the Zustand store
+        setMessages(Array.isArray(json.data) ? json.data : []);
+        setHasMore(json.hasNextPage ?? false);
+        setPage(1);
       } catch (error) {
         toast.error(error.message || "Could not load messages");
         setMessages([]);
@@ -51,12 +51,13 @@ const useGetMessage = () => {
     fetchMessages();
   }, [selectedConversation?._id]);
 
-  // Called by Messages.jsx when user scrolls to top
+  // ✅ Pagination — prepend older messages with dedup
   const fetchOlderMessages = useCallback(async () => {
     if (!hasMore || isFetchingMore || !selectedConversation?._id) return;
 
     const nextPage = page + 1;
     setIsFetchingMore(true);
+
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(
@@ -70,8 +71,23 @@ const useGetMessage = () => {
       const json = await res.json();
       if (!res.ok) throw new Error(json.message || "Failed to fetch messages");
 
-      setMessages((prev) => [...json.data, ...prev]); // prepend older messages
-      setHasMore(json.hasNextPage);
+      const fetched = Array.isArray(json.data) ? json.data : [];
+
+      // ✅ Dedup against existing messages before prepending
+      setMessages((prev) => {
+        const existingIds = new Set(
+          prev.map((msg) => msg._id || msg.clientMessageId).filter(Boolean),
+        );
+
+        const fresh = fetched.filter(
+          (msg) =>
+            !existingIds.has(msg._id) && !existingIds.has(msg.clientMessageId),
+        );
+
+        return [...fresh, ...prev];
+      });
+
+      setHasMore(json.hasNextPage ?? false);
       setPage(nextPage);
     } catch (error) {
       toast.error(error.message || "Could not load older messages");
@@ -80,7 +96,13 @@ const useGetMessage = () => {
     }
   }, [hasMore, isFetchingMore, page, selectedConversation?._id]);
 
-  return { loading, isFetchingMore, hasMore, messages, fetchOlderMessages };
+  return {
+    loading,
+    isFetchingMore,
+    hasMore,
+    messages: Array.isArray(messages) ? messages : [],
+    fetchOlderMessages,
+  };
 };
 
 export default useGetMessage;
