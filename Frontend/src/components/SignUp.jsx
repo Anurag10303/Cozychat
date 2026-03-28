@@ -1,13 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useAuth } from "../context/AuthProvider";
 import { useTheme } from "../context/ThemeContext";
 import { Link, useNavigate } from "react-router-dom";
 import BASE_URL from "../config";
 import ThemeToggle from "./ThemeToogle";
 import AvatarUpload from "./AvatarUpload";
-import Cookies from "js-cookie";
 import {
   Mail,
   Lock,
@@ -20,7 +18,6 @@ import {
 } from "lucide-react";
 
 export default function SignUp() {
-  const [authUser, setAuthUser] = useAuth();
   const { theme } = useTheme();
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -91,15 +88,8 @@ export default function SignUp() {
       if (!response.ok) throw new Error(data.message || "Signup failed");
 
       showToast("Account created! Please login.", "success");
-      if (data.token) {
-        Cookies.set("jwt", data.token, {
-          expires: 7,
-          secure: process.env.NODE_ENV === "production",
-          sameSite: "Strict",
-        });
-      }
-      localStorage.setItem("ChatAPP", JSON.stringify(data));
-      setAuthUser(data);
+
+      // ✅ Reset form
       setFormData({
         fullName: "",
         email: "",
@@ -107,7 +97,15 @@ export default function SignUp() {
         confirmPassword: "",
         avatar: null,
       });
-      navigate("login");
+
+      // ✅ Wait for toast to show, then navigate
+      setTimeout(() => {
+        navigate("/login"); // ✅ absolute path — was "login" before (broken)
+      }, 1000);
+
+      // ✅ Removed: localStorage.setItem + setAuthUser
+      // Setting authUser after signup caused the app to treat the user as
+      // logged in, which fought with navigate("/login") and broke redirection
     } catch (error) {
       console.error("Error during SignUp:", error.message);
       showToast(error.message || "SignUp failed. Please try again.", "error");
@@ -177,7 +175,7 @@ export default function SignUp() {
           }`}
           style={{ animation: "fadeSlideUp 0.4s ease-out" }}
         >
-          {/* LEFT PANEL — sticky so it stays visible while right panel scrolls */}
+          {/* LEFT PANEL */}
           <div
             className="relative w-[38%] flex-shrink-0 flex flex-col justify-center items-center p-10 overflow-hidden"
             style={{
