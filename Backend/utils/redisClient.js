@@ -4,11 +4,8 @@ const client = createClient({
   url: process.env.REDIS_URL,
   socket: {
     reconnectStrategy: (retries) => {
-      if (retries > 10) {
-        console.log("Redis retry limit reached");
-        return new Error("Retry limit reached");
-      }
-      return Math.min(retries * 100, 3000);
+      console.log(`Redis retry attempt: ${retries}`);
+      return Math.min(retries * 500, 5000);
     },
   },
 });
@@ -19,6 +16,8 @@ client.on("end", () => console.log("Redis connection closed"));
 client.on("reconnecting", () => console.log("Redis reconnecting..."));
 client.on("error", (err) => console.log("Redis error:", err.message));
 
-await client.connect();
+client.connect().catch((err) => {
+  console.log("Redis connection failed, continuing without Redis");
+});
 
 export default client;

@@ -16,18 +16,15 @@ const server = http.createServer(app);
 export const addUserSocket = async (userId, socketId) => {
   await redisClient.sAdd(`user:sockets:${userId}`, socketId);
   await redisClient.sAdd("online:users", String(userId));
-
-  // Debug
-  const sockets = await redisClient.sMembers(`user:sockets:${userId}`);
 };
 
 export const removeUserSocket = async (userId, socketId) => {
   await redisClient.sRem(`user:sockets:${userId}`, socketId);
   const remaining = await redisClient.sCard(`user:sockets:${userId}`);
   if (remaining === 0) {
-    await redisClient.sRem("online:users", String(userId)); // ✅ always string
+    await redisClient.sRem("online:users", String(userId));
     await redisClient.del(`user:sockets:${userId}`);
-    return true; // ✅ signals user is now fully offline
+    return true;
   }
   return false;
 };
@@ -49,27 +46,37 @@ const io = new Server(server, {
   },
 });
 
-// ─── Redis Adapter ───────────────────────────────────────────
+// ─── Redis Adapter (SAFE VERSION) ─────────────────────────────
 
 const pubClient = createClient({
   url: process.env.REDIS_URL,
-  socket: { reconnectStrategy: (retries) => Math.min(retries * 100, 3000) },
+  socket: {
+    reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
+  },
 });
 
 const subClient = pubClient.duplicate();
 
-pubClient.on("error", (err) => console.error("Redis pub error:", err));
-subClient.on("error", (err) => console.error("Redis sub error:", err));
+pubClient.on("error", (err) => console.log("Redis pub error:", err.message));
+subClient.on("error", (err) => console.log("Redis sub error:", err.message));
 
-await Promise.all([pubClient.connect(), subClient.connect()]);
-io.adapter(createAdapter(pubClient, subClient));
+// ✅ FIX: Redis is OPTIONAL (no crash)
+(async () => {
+  try {
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    io.adapter(createAdapter(pubClient, subClient));
+    console.log("Redis adapter connected");
+  } catch (err) {
+    console.log("Redis adapter failed, running without Redis:", err.message);
+  }
+})();
 
-// ─── Connection Handler ──────────────────────────────────────
+// ─── Socket Connection ───────────────────────────────────────
 
 io.on("connection", async (socket) => {
   console.log("User connected:", socket.id);
 
-  let userId; // ✅ declared here so disconnect handler can check it
+  let userId;
 
   // ── Auth ──────────────────────────────────────────────────
   try {
@@ -83,6 +90,7 @@ io.on("connection", async (socket) => {
     return;
   }
 
+  // ── Clean stale sockets ───────────────────────────────────
   try {
     const existingSockets = await redisClient.sMembers(
       `user:sockets:${userId}`,
@@ -91,7 +99,6 @@ io.on("connection", async (socket) => {
       const activeSocket = io.sockets.sockets.get(staleSocketId);
       if (!activeSocket) {
         await redisClient.sRem(`user:sockets:${userId}`, staleSocketId);
-        console.log(`Removed stale socket ${staleSocketId} for user ${userId}`);
       }
     }
   } catch (err) {
@@ -103,7 +110,7 @@ io.on("connection", async (socket) => {
   const onlineUsers = await getOnlineUsers();
   io.emit("getOnlineUsers", onlineUsers);
 
-  // ── Mark undelivered messages as delivered on connect ─────
+  // ── Mark undelivered messages as delivered ────────────────
   try {
     const undelivered = await Message.find({
       receiverId: userId,
@@ -118,7 +125,6 @@ io.on("connection", async (socket) => {
         { $set: { status: "delivered" } },
       );
 
-      // Group by sender for efficient socket emission
       const bySender = {};
       undelivered.forEach((msg) => {
         const sid = msg.senderId.toString();
@@ -139,7 +145,7 @@ io.on("connection", async (socket) => {
       }
     }
   } catch (err) {
-    console.log("Error marking delivered on connect:", err.message);
+    console.log("Error marking delivered:", err.message);
   }
 
   // ── markSeen ──────────────────────────────────────────────
@@ -178,39 +184,25 @@ io.on("connection", async (socket) => {
 
   // ── Typing ────────────────────────────────────────────────
   socket.on("typing", async ({ receiverId }) => {
-    try {
-      const receiverSockets = await getReceiverSocketId(receiverId);
-      receiverSockets.forEach((id) => {
-        io.to(id).emit("typing", { senderId: userId });
-      });
-    } catch (err) {
-      console.log("Error in typing:", err.message);
-    }
+    const receiverSockets = await getReceiverSocketId(receiverId);
+    receiverSockets.forEach((id) => {
+      io.to(id).emit("typing", { senderId: userId });
+    });
   });
 
   socket.on("stopTyping", async ({ receiverId }) => {
-    try {
-      const receiverSockets = await getReceiverSocketId(receiverId);
-      receiverSockets.forEach((id) => {
-        io.to(id).emit("stopTyping", { senderId: userId });
-      });
-    } catch (err) {
-      console.log("Error in stopTyping:", err.message);
-    }
+    const receiverSockets = await getReceiverSocketId(receiverId);
+    receiverSockets.forEach((id) => {
+      io.to(id).emit("stopTyping", { senderId: userId });
+    });
   });
 
   // ── Disconnect ────────────────────────────────────────────
   socket.on("disconnect", async () => {
-    console.log("disconnect fired for:", userId, socket.id);
-
     if (!userId) return;
 
     try {
-      const before = await redisClient.sMembers("online:users");
-
-      const isFullyOffline = await removeUserSocket(userId, socket.id);
-
-      const after = await redisClient.sMembers("online:users");
+      await removeUserSocket(userId, socket.id);
     } catch (err) {
       console.log("Error on disconnect:", err.message);
     }
