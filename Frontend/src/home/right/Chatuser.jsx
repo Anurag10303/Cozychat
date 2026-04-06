@@ -47,7 +47,8 @@ function Chatuser() {
   const isLight = theme === "light";
 
   const isOnline =
-    selectedConversation && onlineUser.includes(selectedConversation._id);
+    selectedConversation &&
+    onlineUser.map(String).includes(String(selectedConversation._id));
   const colorIdx = getColorIndex(selectedConversation?.fullName || "");
   const colors = AVATAR_COLORS[colorIdx][isLight ? "light" : "dark"];
 

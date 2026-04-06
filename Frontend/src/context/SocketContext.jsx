@@ -5,9 +5,7 @@ import BASE_URL from "../config";
 
 const socketContext = createContext();
 
-export const useSocketContext = () => {
-  return useContext(socketContext);
-};
+export const useSocketContext = () => useContext(socketContext);
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
@@ -15,50 +13,52 @@ export const SocketProvider = ({ children }) => {
   const [authUser] = useAuth();
 
   useEffect(() => {
-    if (authUser) {
-      const newSocket = io(BASE_URL, {
-        auth: {
-          token: authUser.token,
-        },
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-      });
-
-      setSocket(newSocket);
-
-      newSocket.on("getOnlineUsers", (users) => {
-        setOnlineUser(users);
-      });
-
-      newSocket.on("connect", () => {
-        console.log("✅ Socket connected:", newSocket.id);
-
-        // ✅ When user reconnects (comes back online), tell the backend
-        // so it can mark pending messages as delivered and notify senders
-        newSocket.emit("userReconnected", { userId: authUser.user?._id });
-      });
-
-      newSocket.on("disconnect", () => {
-        console.log("❌ Socket disconnected");
-      });
-
-      // ✅ Debug — log all events during development, remove in production
-      newSocket.onAny((event, ...args) => {
-        console.log("📡 Socket event:", event, args);
-      });
-
-      return () => {
-        newSocket.offAny();
-        newSocket.off("getOnlineUsers");
-        newSocket.disconnect();
-      };
-    } else {
+    if (!authUser) {
+      setOnlineUser([]);
       if (socket) {
         socket.disconnect();
         setSocket(null);
       }
+      return;
     }
+
+    // ✅ Prevent double connection — disconnect any existing socket first
+    setSocket((prevSocket) => {
+      if (prevSocket) {
+        prevSocket.disconnect();
+      }
+      return null;
+    });
+
+    const newSocket = io(BASE_URL, {
+      auth: { token: authUser.token },
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    setSocket(newSocket);
+
+    newSocket.on("getOnlineUsers", (users) => {
+      console.log("🟢 RAW onlineUsers from server:", users);
+      setOnlineUser(users.map(String));
+    });
+
+    newSocket.on("connect", () => {
+      console.log("✅ Socket connected:", newSocket.id);
+    });
+
+    newSocket.on("disconnect", () => {
+      console.log("❌ Socket disconnected");
+    });
+
+    // ✅ Cleanup — this runs on unmount AND before remount in Strict Mode
+    return () => {
+      newSocket.off("getOnlineUsers");
+      newSocket.off("connect");
+      newSocket.off("disconnect");
+      newSocket.disconnect(); // ✅ ensures Redis cleans up on remount too
+    };
   }, [authUser]);
 
   return (

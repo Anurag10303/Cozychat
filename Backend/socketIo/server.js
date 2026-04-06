@@ -4,11 +4,43 @@ import express from "express";
 import jwt from "jsonwebtoken";
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
+import redisClient from "../utils/redisClient.js";
+import { createAdapter } from "@socket.io/redis-adapter";
+import { createClient } from "redis";
 
 const app = express();
 const server = http.createServer(app);
 
-const users = {};
+// ─── Redis Helpers ───────────────────────────────────────────
+
+export const addUserSocket = async (userId, socketId) => {
+  await redisClient.sAdd(`user:sockets:${userId}`, socketId);
+  await redisClient.sAdd("online:users", String(userId));
+
+  // Debug
+  const sockets = await redisClient.sMembers(`user:sockets:${userId}`);
+};
+
+export const removeUserSocket = async (userId, socketId) => {
+  await redisClient.sRem(`user:sockets:${userId}`, socketId);
+  const remaining = await redisClient.sCard(`user:sockets:${userId}`);
+  if (remaining === 0) {
+    await redisClient.sRem("online:users", String(userId)); // ✅ always string
+    await redisClient.del(`user:sockets:${userId}`);
+    return true; // ✅ signals user is now fully offline
+  }
+  return false;
+};
+
+export const getReceiverSocketId = async (userId) => {
+  return await redisClient.sMembers(`user:sockets:${userId}`);
+};
+
+export const getOnlineUsers = async () => {
+  return await redisClient.sMembers("online:users");
+};
+
+// ─── Socket.IO Server ────────────────────────────────────────
 
 const io = new Server(server, {
   cors: {
@@ -17,17 +49,25 @@ const io = new Server(server, {
   },
 });
 
-export const getOnlineUsers = () => Object.keys(users);
+// ─── Redis Adapter ───────────────────────────────────────────
 
-export const getReceiverSocketId = (receiverId) => {
-  return users[receiverId] ? Array.from(users[receiverId]) : [];
-};
+const pubClient = createClient({ url: process.env.REDIS_URL });
+const subClient = pubClient.duplicate();
 
-io.on("connection", (socket) => {
+pubClient.on("error", (err) => console.error("Redis pub error:", err));
+subClient.on("error", (err) => console.error("Redis sub error:", err));
+
+await Promise.all([pubClient.connect(), subClient.connect()]);
+io.adapter(createAdapter(pubClient, subClient));
+
+// ─── Connection Handler ──────────────────────────────────────
+
+io.on("connection", async (socket) => {
   console.log("User connected:", socket.id);
 
-  let userId;
+  let userId; // ✅ declared here so disconnect handler can check it
 
+  // ── Auth ──────────────────────────────────────────────────
   try {
     const token = socket.handshake.auth.token;
     if (!token) throw new Error("No token provided");
@@ -39,26 +79,42 @@ io.on("connection", (socket) => {
     return;
   }
 
-  if (!users[userId]) users[userId] = new Set();
-  users[userId].add(socket.id);
-  io.emit("getOnlineUsers", getOnlineUsers());
+  try {
+    const existingSockets = await redisClient.sMembers(
+      `user:sockets:${userId}`,
+    );
+    for (const staleSocketId of existingSockets) {
+      const activeSocket = io.sockets.sockets.get(staleSocketId);
+      if (!activeSocket) {
+        await redisClient.sRem(`user:sockets:${userId}`, staleSocketId);
+        console.log(`Removed stale socket ${staleSocketId} for user ${userId}`);
+      }
+    }
+  } catch (err) {
+    console.log("Error cleaning stale sockets:", err.message);
+  }
 
-  // ✅ On connect — mark all "sent" messages sent TO this user as "delivered"
-  (async () => {
-    try {
-      const undelivered = await Message.find({
-        receiverId: userId,
-        status: "sent",
-      });
+  // ── Register user ─────────────────────────────────────────
+  await addUserSocket(userId, socket.id);
+  const onlineUsers = await getOnlineUsers();
+  io.emit("getOnlineUsers", onlineUsers);
 
-      if (undelivered.length === 0) return;
+  // ── Mark undelivered messages as delivered on connect ─────
+  try {
+    const undelivered = await Message.find({
+      receiverId: userId,
+      status: "sent",
+    });
 
+    if (undelivered.length > 0) {
       const messageIds = undelivered.map((m) => m._id);
+
       await Message.updateMany(
         { _id: { $in: messageIds } },
         { $set: { status: "delivered" } },
       );
 
+      // Group by sender for efficient socket emission
       const bySender = {};
       undelivered.forEach((msg) => {
         const sid = msg.senderId.toString();
@@ -66,8 +122,8 @@ io.on("connection", (socket) => {
         bySender[sid].push(msg._id.toString());
       });
 
-      Object.entries(bySender).forEach(([senderId, ids]) => {
-        const senderSockets = getReceiverSocketId(senderId);
+      for (const [senderId, ids] of Object.entries(bySender)) {
+        const senderSockets = await getReceiverSocketId(senderId);
         ids.forEach((messageId) => {
           senderSockets.forEach((socketId) => {
             io.to(socketId).emit("messageStatusUpdate", {
@@ -76,21 +132,17 @@ io.on("connection", (socket) => {
             });
           });
         });
-      });
-    } catch (err) {
-      console.log("Error marking delivered on connect:", err.message);
+      }
     }
-  })();
+  } catch (err) {
+    console.log("Error marking delivered on connect:", err.message);
+  }
 
-  // ✅ markSeen — fixed to use senderId + receiverId (no conversationId needed)
-  // Frontend emits: { senderId: selectedConversation._id }
+  // ── markSeen ──────────────────────────────────────────────
   socket.on("markSeen", async ({ senderId }) => {
     try {
-      if (!senderId) {
-        return;
-      }
+      if (!senderId) return;
 
-      // Find all unseen messages from senderId to the current user (userId)
       const unseenMessages = await Message.find({
         senderId,
         receiverId: userId,
@@ -101,14 +153,12 @@ io.on("connection", (socket) => {
 
       const messageIds = unseenMessages.map((m) => m._id);
 
-      // ✅ Bulk update to "seen" in DB
       await Message.updateMany(
         { _id: { $in: messageIds } },
         { $set: { status: "seen" } },
       );
 
-      // ✅ Notify sender — their ticks turn blue
-      const senderSockets = getReceiverSocketId(senderId);
+      const senderSockets = await getReceiverSocketId(senderId);
       unseenMessages.forEach((msg) => {
         senderSockets.forEach((socketId) => {
           io.to(socketId).emit("messageStatusUpdate", {
@@ -122,39 +172,47 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Typing
-  socket.on("typing", ({ receiverId }) => {
-    const receiverSockets = getReceiverSocketId(receiverId);
-    receiverSockets.forEach((id) => {
-      io.to(id).emit("typing", { senderId: userId });
-    });
+  // ── Typing ────────────────────────────────────────────────
+  socket.on("typing", async ({ receiverId }) => {
+    try {
+      const receiverSockets = await getReceiverSocketId(receiverId);
+      receiverSockets.forEach((id) => {
+        io.to(id).emit("typing", { senderId: userId });
+      });
+    } catch (err) {
+      console.log("Error in typing:", err.message);
+    }
   });
 
-  socket.on("stopTyping", ({ receiverId }) => {
-    const receiverSockets = getReceiverSocketId(receiverId);
-    receiverSockets.forEach((id) => {
-      io.to(id).emit("stopTyping", { senderId: userId });
-    });
+  socket.on("stopTyping", async ({ receiverId }) => {
+    try {
+      const receiverSockets = await getReceiverSocketId(receiverId);
+      receiverSockets.forEach((id) => {
+        io.to(id).emit("stopTyping", { senderId: userId });
+      });
+    } catch (err) {
+      console.log("Error in stopTyping:", err.message);
+    }
   });
 
-  // Disconnect
+  // ── Disconnect ────────────────────────────────────────────
   socket.on("disconnect", async () => {
-    console.log("User disconnected:", socket.id);
+    console.log("disconnect fired for:", userId, socket.id);
 
-    if (users[userId]) {
-      users[userId].delete(socket.id);
+    if (!userId) return;
 
-      if (users[userId].size === 0) {
-        delete users[userId];
-        try {
-          await User.findByIdAndUpdate(userId, { lastSeen: new Date() });
-        } catch (err) {
-          console.log("Error updating lastSeen:", err.message);
-        }
-      }
+    try {
+      const before = await redisClient.sMembers("online:users");
+
+      const isFullyOffline = await removeUserSocket(userId, socket.id);
+
+      const after = await redisClient.sMembers("online:users");
+    } catch (err) {
+      console.log("Error on disconnect:", err.message);
     }
 
-    io.emit("getOnlineUsers", getOnlineUsers());
+    const onlineUsers = await getOnlineUsers();
+    io.emit("getOnlineUsers", onlineUsers);
   });
 });
 

@@ -13,6 +13,7 @@ import { app, server } from "./socketIo/server.js";
 import AppError from "./utils/AppError.js";
 import errorMiddleware from "./middleware/errorMiddleware.js";
 import { generalLimiter } from "./middleware/rateLimiter.js";
+import redisClient from "./utils/redisClient.js"
 
 dotenv.config();
 
@@ -39,6 +40,14 @@ app.use("/user/messages", messageRoute);
 
 // ===== STATIC FILES =====
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// ✅ Clear all socket/online state on server restart (dev only)
+if (process.env.NODE_ENV !== "production") {
+  const keys = await redisClient.keys("user:sockets:*");
+  if (keys.length > 0) await redisClient.del(keys);
+  await redisClient.del("online:users");
+  console.log("🧹 Cleared stale Redis socket state on restart");
+}
 
 // ===== PRODUCTION FRONTEND =====
 if (process.env.NODE_ENV === "production") {

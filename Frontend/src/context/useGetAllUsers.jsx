@@ -6,7 +6,7 @@ import useConversation from "../zustand/userConveration";
 function useGetAllUsers() {
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const { socket } = useSocketContext();
+  const { socket, onlineUser } = useSocketContext(); // ✅ pull onlineUser here
   const { selectedConversation } = useConversation();
 
   const fetchUsers = async () => {
@@ -32,13 +32,22 @@ function useGetAllUsers() {
     }
   };
 
-  // Initial fetch
   useEffect(() => {
     fetchUsers();
   }, []);
 
-  // ✅ When a new message arrives via socket, increment unread count
-  // for that sender — but only if they're not the currently open conversation
+  // ✅ Re-sync allUsers whenever onlineUser changes
+  // This forces Users.jsx to re-render and User children to re-evaluate isOnline
+  useEffect(() => {
+    if (allUsers.length === 0) return;
+    setAllUsers((prev) =>
+      prev.map((user) => ({
+        ...user,
+        isOnline: onlineUser.includes(String(user._id)), // ✅ stamp it on the user object
+      })),
+    );
+  }, [onlineUser]); // ✅ runs every time online list changes
+
   useEffect(() => {
     if (!socket) return;
 
@@ -47,7 +56,7 @@ function useGetAllUsers() {
         selectedConversation?._id?.toString() ===
         newMessage.senderId?.toString();
 
-      if (isCurrentConversation) return; // already marked seen, don't increment
+      if (isCurrentConversation) return;
 
       setAllUsers((prev) =>
         prev.map((user) =>
@@ -62,7 +71,6 @@ function useGetAllUsers() {
     return () => socket.off("newMessage", handleNewMessage);
   }, [socket, selectedConversation]);
 
-  // ✅ When user opens a conversation, reset that user's unread count to 0
   useEffect(() => {
     if (!selectedConversation?._id) return;
 

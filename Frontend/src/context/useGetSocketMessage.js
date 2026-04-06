@@ -5,38 +5,39 @@ import sound from "../assets/Order-up-bell-sound-effect.mp3";
 
 const useGetSocketMessage = () => {
   const { socket } = useSocketContext();
-  const { appendMessage, updateMessageStatus } = useConversation();
+  const { appendMessage, updateMessageStatus, selectedConversation } =
+    useConversation();
 
-  // ✅ New incoming messages — uses appendMessage which handles:
-  // - dedup by _id
-  // - dedup by clientMessageId
-  // - merge if optimistic message already exists
   useEffect(() => {
     if (!socket) return;
 
     const handleNewMessage = (newMessage) => {
-      try {
-        const notification = new Audio(sound);
-        notification.play();
-      } catch (err) {
-        console.warn("Audio play failed:", err);
-      }
+      console.log("📩 RECEIVED:", newMessage);
 
-      // ✅ appendMessage instead of setMessages([...messages, newMessage])
-      // This avoids the stale closure bug AND handles dedup/merge
+      try {
+        new Audio(sound).play();
+      } catch (err) {}
+      // ✅ Always append — never drop incoming messages
       appendMessage(newMessage);
+
+      // 🔥 CRITICAL FIX: only append if message belongs to current chat
+      if (
+        newMessage.senderId === selectedConversation?._id ||
+        newMessage.receiverId === selectedConversation?._id
+      ) {
+        appendMessage(newMessage);
+      }
     };
 
     socket.on("newMessage", handleNewMessage);
     return () => socket.off("newMessage", handleNewMessage);
-  }, [socket, appendMessage]);
+  }, [socket, appendMessage, selectedConversation]);
 
-  // ✅ Status updates
+  // status updates (unchanged)
   useEffect(() => {
     if (!socket) return;
 
     const handleStatusUpdate = ({ messageId, status }) => {
-      console.log("📨 Status update:", messageId, status);
       updateMessageStatus(messageId, status);
     };
 

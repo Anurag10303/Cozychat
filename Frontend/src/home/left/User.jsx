@@ -4,6 +4,7 @@ import useConversation from "../../zustand/userConveration.js";
 import { useSocketContext } from "../../context/SocketContext.jsx";
 import { useTheme } from "../../context/ThemeContext.jsx";
 import BASE_URL from "../../config.js";
+import { useState } from "react";
 
 const AVATAR_COLORS = [
   {
@@ -45,11 +46,13 @@ function getInitials(name = "") {
 
 export function User({ user }) {
   const { onlineUser } = useSocketContext();
-  const isOnline = onlineUser.includes(user._id);
+  console.log("user._id:", String(user._id), "onlineUsers:", onlineUser);
+  const isOnline = user.isOnline ?? onlineUser.includes(String(user._id));
   const { selectedConversation, setSelectedConversation } = useConversation();
   const isSelected = selectedConversation?._id === user._id;
   const { theme } = useTheme();
   const isLight = theme === "light";
+  const [imgError, setImgError] = useState(false);
 
   const colorIdx = getColorIndex(user.fullName);
   const colors = AVATAR_COLORS[colorIdx][isLight ? "light" : "dark"];
@@ -86,7 +89,7 @@ export function User({ user }) {
               : "none",
           }}
         >
-          {user.avatar?.trim() ? (
+          {user.avatar && !imgError ? (
             <img
               src={`${BASE_URL}/uploads/${user.avatar}`}
               alt={user.fullName}

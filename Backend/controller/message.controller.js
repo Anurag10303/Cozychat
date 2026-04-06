@@ -3,6 +3,7 @@ import Message from "../models/message.model.js";
 import { getReceiverSocketId, io } from "../socketIo/server.js";
 import asyncHandler from "../utils/asyncHandler.js";
 import AppError from "../utils/AppError.js";
+import redisClient from "../utils/redisClient.js";
 
 // ─────────────────────────────────────────────
 // POST /api/messages/send/:id
@@ -49,7 +50,7 @@ export const sendMessage = asyncHandler(async (req, res, next) => {
     receiverId,
     message,
     clientMessageId,
-    conversationId: conversation._id, 
+    conversationId: conversation._id,
     status: "sent",
   });
 
@@ -76,15 +77,20 @@ export const sendMessage = asyncHandler(async (req, res, next) => {
   conversation.messages.push(newMessage._id);
   await conversation.save();
 
+  // ✅ Always invalidate cache — BEFORE socket delivery
+  await redisClient.del(`messages:${senderId}:${receiverId}:page:1`);
+  await redisClient.del(`messages:${receiverId}:${senderId}:page:1`);
+
   // ── Socket delivery ─────────────────────────
-  const receiverSocketIds = getReceiverSocketId(receiverId);
+  // ✅ Fix
+  const receiverSocketIds = await getReceiverSocketId(receiverId);
 
   if (receiverSocketIds && receiverSocketIds.length > 0) {
     // FIX: use { new: true } so we emit the updated doc with status "delivered"
     const deliveredMessage = await Message.findByIdAndUpdate(
       newMessage._id,
       { status: "delivered" },
-      { new: true }
+      { new: true },
     ).lean();
 
     receiverSocketIds.forEach((id) => {
@@ -118,6 +124,15 @@ export const getMessage = asyncHandler(async (req, res, next) => {
   const limit = parseInt(req.query.limit) || 20;
   const skip = (page - 1) * limit;
 
+  // ✅ cache key (VERY IMPORTANT DESIGN)
+  const cacheKey = `messages:${senderId}:${chatUserId}:page:${page}`;
+
+  // 1. Check cache
+  const cached = await redisClient.get(cacheKey);
+  if (cached) {
+    return res.status(200).json(JSON.parse(cached));
+  }
+
   const query = {
     $or: [
       { senderId: senderId, receiverId: chatUserId },
@@ -140,7 +155,7 @@ export const getMessage = asyncHandler(async (req, res, next) => {
 
   const totalPages = Math.ceil(total / limit);
 
-  res.status(200).json({
+  const response = {
     success: true,
     page,
     limit,
@@ -148,6 +163,10 @@ export const getMessage = asyncHandler(async (req, res, next) => {
     totalPages,
     hasNextPage: page < totalPages,
     count: messages.length,
-    data: messages,       // ← array, always
-  });
+    data: messages,
+  };
+  await redisClient.setEx(cacheKey, 60, JSON.stringify(response));
+
+  // 3. Send response
+  res.status(200).json(response);
 });
