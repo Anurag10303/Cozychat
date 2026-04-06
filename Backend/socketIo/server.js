@@ -51,7 +51,11 @@ const io = new Server(server, {
 
 // ─── Redis Adapter ───────────────────────────────────────────
 
-const pubClient = createClient({ url: process.env.REDIS_URL });
+const pubClient = createClient({
+  url: process.env.REDIS_URL,
+  socket: { reconnectStrategy: (retries) => Math.min(retries * 100, 3000) },
+});
+
 const subClient = pubClient.duplicate();
 
 pubClient.on("error", (err) => console.error("Redis pub error:", err));
