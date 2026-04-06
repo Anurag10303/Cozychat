@@ -46,12 +46,18 @@ const io = new Server(server, {
   },
 });
 
-// ─── Redis Adapter (SAFE VERSION) ─────────────────────────────
+// ─── Redis Adapter for pub/sub (Upstash TLS) ─────────────────
 
+// ✅ Both pub and sub clients need TLS for Upstash
 const pubClient = createClient({
-  url: process.env.REDIS_URL,
+  url: process.env.REDIS_URL, // must start with rediss:// not redis://
   socket: {
-    reconnectStrategy: (retries) => Math.min(retries * 100, 3000),
+    tls: true, // ✅ required for Upstash
+    rejectUnauthorized: false, // ✅ Upstash free tier uses self-signed cert
+    reconnectStrategy: (retries) => {
+      if (retries > 5) return false; // stop retrying instead of crashing
+      return Math.min(retries * 100, 3000);
+    },
   },
 });
 
@@ -60,14 +66,14 @@ const subClient = pubClient.duplicate();
 pubClient.on("error", (err) => console.log("Redis pub error:", err.message));
 subClient.on("error", (err) => console.log("Redis sub error:", err.message));
 
-// ✅ FIX: Redis is OPTIONAL (no crash)
+// ✅ Redis adapter is optional — app runs fine without it
 (async () => {
   try {
     await Promise.all([pubClient.connect(), subClient.connect()]);
     io.adapter(createAdapter(pubClient, subClient));
     console.log("Redis adapter connected");
   } catch (err) {
-    console.log("Redis adapter failed, running without Redis:", err.message);
+    console.log("Redis adapter failed, running without it:", err.message);
   }
 })();
 
@@ -200,6 +206,7 @@ io.on("connection", async (socket) => {
   // ── Disconnect ────────────────────────────────────────────
   socket.on("disconnect", async () => {
     if (!userId) return;
+    console.log("User disconnected:", socket.id);
 
     try {
       await removeUserSocket(userId, socket.id);
