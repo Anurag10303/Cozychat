@@ -14,14 +14,7 @@ const router = express.Router();
 router.post(
   "/signup",
   authLimiter,
-  (req, res, next) => {
-    upload.single("avatar")(req, res, function (err) {
-      if (err) {
-        return next(err); // send to global error handler
-      }
-      next();
-    });
-  },
+  upload.single("avatar"), // ✅ DIRECT USE
   signUp,
 );
 router.post("/login", authLimiter, signIn);

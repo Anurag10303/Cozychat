@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
+dotenv.config();
 import cors from "cors";
 import path from "path";
 import cookieParser from "cookie-parser";
@@ -13,9 +14,7 @@ import { app, server } from "./socketIo/server.js";
 import AppError from "./utils/AppError.js";
 import errorMiddleware from "./middleware/errorMiddleware.js";
 import { generalLimiter } from "./middleware/rateLimiter.js";
-import redisClient from "./utils/redisClient.js"
-
-dotenv.config();
+import redisClient from "./utils/redisClient.js";
 
 const Port = process.env.PORT || 4000;
 const URI = process.env.MONGODB_URL;
@@ -38,7 +37,8 @@ app.use(
 app.use("/user", userRoute);
 app.use("/user/messages", messageRoute);
 
-// ===== STATIC FILES =====
+// ✅ Keep this for backwards compatibility with old local avatars
+// Safe to remove after all users re-upload or you run the migration below
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ✅ Clear all socket/online state on server restart (dev only)
@@ -66,7 +66,11 @@ app.get("/api-test", (req, res) => {
 });
 
 // ===== 404 HANDLER =====
+// ✅ Fix — skip the error for /uploads/* misses, just send 404 silently
 app.all("*", (req, res, next) => {
+  if (req.originalUrl.startsWith("/uploads/")) {
+    return res.status(404).end();
+  }
   next(new AppError(`Can't find ${req.originalUrl}`, 404));
 });
 

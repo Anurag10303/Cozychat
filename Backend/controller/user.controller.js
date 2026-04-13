@@ -5,16 +5,16 @@ import Message from "../models/message.model.js";
 import bcrypt from "bcrypt";
 import createTokenAndSaveCookie from "../authenticator/jwtAuth.js";
 
+// Cloudinary gives us a full URL in req.file.path — no manual URL building needed
+const getAvatar = (req) => req.file?.path || null;
+
 export const signUp = asyncHandler(async (req, res) => {
   const { fullName, email, password, confirmPassword } = req.body;
-  const avatar = req.file?.filename;
 
-  if (!fullName || !email || !password || !confirmPassword) {
+  if (!fullName || !email || !password || !confirmPassword)
     throw new AppError("All fields are required", 400);
-  }
-  if (password !== confirmPassword) {
+  if (password !== confirmPassword)
     throw new AppError("Passwords do not match", 400);
-  }
 
   const existingUser = await User.findOne({ email });
   if (existingUser) throw new AppError("User already exists", 400);
@@ -24,8 +24,9 @@ export const signUp = asyncHandler(async (req, res) => {
     fullName,
     email,
     password: hashedPassword,
-    avatar,
+    avatar: getAvatar(req), // ✅ full Cloudinary URL stored directly
   });
+
   const token = createTokenAndSaveCookie(newUser._id, res);
 
   res.status(201).json({
@@ -58,7 +59,12 @@ export const signIn = asyncHandler(async (req, res) => {
     success: true,
     message: "Sign in successful",
     token,
-    user: { _id: user._id, fullName: user.fullName, email: user.email },
+    user: {
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      avatar: user.avatar, // ✅ now always a full Cloudinary URL
+    },
   });
 });
 
@@ -74,7 +80,7 @@ export const signOut = asyncHandler(async (req, res) => {
 });
 
 export const allUsers = asyncHandler(async (req, res) => {
-  if (!req.user?._id) throw new AppError("Unauthorized: No user ID found", 401);
+  if (!req.user?._id) throw new AppError("Unauthorized", 401);
 
   const loggedInUser = req.user._id;
 
@@ -82,17 +88,15 @@ export const allUsers = asyncHandler(async (req, res) => {
     "-password",
   );
 
-  // ✅ Correct query: messages sent BY that user TO the logged-in user
-  // that are strictly "sent" or "delivered" (i.e. not yet seen by logged-in user)
   const usersWithUnread = await Promise.all(
     users.map(async (user) => {
       const unreadCount = await Message.countDocuments({
-        senderId: user._id, // they sent it
-        receiverId: loggedInUser, // to me
-        status: { $in: ["sent", "delivered"] }, // I haven't seen it yet
+        senderId: user._id,
+        receiverId: loggedInUser,
+        status: { $in: ["sent", "delivered"] },
       });
-
       return { ...user.toObject(), unreadCount };
+      // ✅ avatar is already a full Cloudinary URL in the DB — no transformation needed
     }),
   );
 

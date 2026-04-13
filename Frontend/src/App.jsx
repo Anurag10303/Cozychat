@@ -9,7 +9,6 @@ import { ThemeProvider } from "./context/ThemeContext"
 
 function App() {
   const [authUser, setAuthUser] = useAuth()
-  console.log("Console", authUser)
   return (
     <ThemeProvider>
       <Routes>

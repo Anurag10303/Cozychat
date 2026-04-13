@@ -1,41 +1,39 @@
+// middleware/multer.js
 import multer from "multer";
-import path from "path";
-import fs from "fs";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
+import { v2 as cloudinary } from "cloudinary";
 import AppError from "../utils/AppError.js";
+import dotenv from "dotenv";
+dotenv.config();
 
-// Ensure uploads directory exists
-const uploadDir = "uploads/";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
-// Storage config
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
-    const ext = path.extname(file.originalname);
-    cb(null, file.fieldname + "-" + uniqueSuffix + ext);
+
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: "cozychat/avatars",
+    allowed_formats: ["jpg", "jpeg", "png"],
+    transformation: [
+      { width: 200, height: 200, crop: "fill", gravity: "face" },
+    ],
   },
 });
 
-// 🔥 File filter (VERY IMPORTANT)
 const fileFilter = (req, file, cb) => {
-  const allowedTypes = ["image/jpeg", "image/png", "image/jpg"];
-
-  if (!allowedTypes.includes(file.mimetype)) {
+  const allowed = ["image/jpeg", "image/png", "image/jpg"];
+  if (!allowed.includes(file.mimetype))
     return cb(new AppError("Only image files are allowed", 400), false);
-  }
-
   cb(null, true);
 };
 
-// Multer instance
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter,
 });
 

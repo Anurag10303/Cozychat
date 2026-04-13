@@ -46,7 +46,6 @@ function getInitials(name = "") {
 
 export function User({ user }) {
   const { onlineUser } = useSocketContext();
-  console.log("user._id:", String(user._id), "onlineUsers:", onlineUser);
   const isOnline = user.isOnline ?? onlineUser.includes(String(user._id));
   const { selectedConversation, setSelectedConversation } = useConversation();
   const isSelected = selectedConversation?._id === user._id;
@@ -91,7 +90,7 @@ export function User({ user }) {
         >
           {user.avatar && !imgError ? (
             <img
-              src={`${BASE_URL}/uploads/${user.avatar}`}
+              src={user.avatar}
               alt={user.fullName}
               className="w-full h-full object-cover"
               onError={(e) => {

@@ -52,7 +52,11 @@ export default function SignIn() {
       })
       .then((data) => {
         if (!data.token) throw new Error("Authentication token missing");
-        localStorage.setItem("RealChat", JSON.stringify(data.user));
+        localStorage.setItem(
+          "RealChat",
+          JSON.stringify({ token: data.token, user: data.user }),
+        );
+        setAuthUser({ token: data.token, user: data.user });
         setAuthUser(data);
         setFormData({ email: "", password: "" });
         showToast("logged in successfully", "success");

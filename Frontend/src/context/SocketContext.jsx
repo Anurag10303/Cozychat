@@ -40,17 +40,12 @@ export const SocketProvider = ({ children }) => {
     setSocket(newSocket);
 
     newSocket.on("getOnlineUsers", (users) => {
-      console.log("🟢 RAW onlineUsers from server:", users);
       setOnlineUser(users.map(String));
     });
 
-    newSocket.on("connect", () => {
-      console.log("✅ Socket connected:", newSocket.id);
-    });
+    newSocket.on("connect", () => {});
 
-    newSocket.on("disconnect", () => {
-      console.log("❌ Socket disconnected");
-    });
+    newSocket.on("disconnect", () => {});
 
     // ✅ Cleanup — this runs on unmount AND before remount in Strict Mode
     return () => {

@@ -1,32 +1,21 @@
 import React, { createContext, useState, useContext } from "react";
-import Cookies from "js-cookie";
 
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  let parsedUser = null;
-
-  try {
-    const rawCookie = Cookies.get("jwt");
-    const rawStorage = localStorage.getItem("ChatAPP");
-    const raw = rawCookie || rawStorage;
-
-      if (raw && raw !== "undefined" && raw !== "null") {
-      parsedUser = JSON.parse(raw);
-
-      if (!parsedUser?.email || !parsedUser?.token) {
-        parsedUser = null;
-      }
+  const [authUser, setAuthUser] = useState(() => {
+    try {
+      const raw = localStorage.getItem("RealChat"); // ✅ match SignIn/SignUp key
+      if (!raw || raw === "undefined" || raw === "null") return null;
+      const parsed = JSON.parse(raw);
+      // stored object is { token, user: { _id, fullName, email, avatar } }
+      if (!parsed?.token || !parsed?.user?._id) return null;
+      return parsed;
+    } catch {
+      localStorage.removeItem("RealChat");
+      return null;
     }
-  } catch (err) {
-    console.error("JWT parse error:", err);
- Cookies.remove("jwt");
-    localStorage.removeItem("ChatAPP");
-
-    parsedUser = null;
-  }
-
-  const [authUser, setAuthUser] = useState(parsedUser);
+  });
 
   return (
     <AuthContext.Provider value={[authUser, setAuthUser]}>

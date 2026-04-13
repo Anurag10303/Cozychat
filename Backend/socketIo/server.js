@@ -10,6 +10,8 @@ import { createClient } from "redis";
 
 const app = express();
 const server = http.createServer(app);
+const REDIS_URL = process.env.REDIS_URL;
+const isTLS = REDIS_URL?.startsWith("rediss://");
 
 // ─── Redis Helpers ───────────────────────────────────────────
 
@@ -46,16 +48,19 @@ const io = new Server(server, {
   },
 });
 
-// ─── Redis Adapter for pub/sub (Upstash TLS) ─────────────────
+// ─── Redis Adapter for pub/sub ────────────────────────────────
 
-// ✅ Both pub and sub clients need TLS for Upstash
+
+
 const pubClient = createClient({
-  url: process.env.REDIS_URL, // must start with rediss:// not redis://
+  url: REDIS_URL,
   socket: {
-    tls: true, // ✅ required for Upstash
-    rejectUnauthorized: false, // ✅ Upstash free tier uses self-signed cert
+    ...(isTLS && {
+      tls: true,
+      rejectUnauthorized: false,
+    }),
     reconnectStrategy: (retries) => {
-      if (retries > 5) return false; // stop retrying instead of crashing
+      if (retries > 5) return false;
       return Math.min(retries * 100, 3000);
     },
   },
@@ -80,7 +85,6 @@ subClient.on("error", (err) => console.log("Redis sub error:", err.message));
 // ─── Socket Connection ───────────────────────────────────────
 
 io.on("connection", async (socket) => {
-  console.log("User connected:", socket.id);
 
   let userId;
 
@@ -206,7 +210,6 @@ io.on("connection", async (socket) => {
   // ── Disconnect ────────────────────────────────────────────
   socket.on("disconnect", async () => {
     if (!userId) return;
-    console.log("User disconnected:", socket.id);
 
     try {
       await removeUserSocket(userId, socket.id);
