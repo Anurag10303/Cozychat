@@ -78,7 +78,7 @@ function Chatuser() {
           >
             {selectedConversation?.avatar?.trim() ? (
               <img
-                src={`${BASE_URL}/uploads/${selectedConversation.avatar}`}
+                src={selectedConversation.avatar}
                 alt={selectedConversation?.fullName}
                 className="w-full h-full object-cover"
                 onError={(e) => {

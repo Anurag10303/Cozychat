@@ -1,6 +1,4 @@
 import mongoose from "mongoose";
-import User from "./user.model.js";
-import Conversation from "./conversation.model.js";
 
 const messageSchema = new mongoose.Schema(
   {
@@ -20,8 +18,27 @@ const messageSchema = new mongoose.Schema(
     },
     message: {
       type: String,
-      required: true,
+      default: "", // ✅ no longer required — file-only messages are valid
     },
+    // ── File attachment fields ──────────────────
+    fileUrl: {
+      type: String,
+      default: null, // full Cloudinary URL
+    },
+    fileType: {
+      type: String,
+      enum: ["image", "video", "audio", "document", null],
+      default: null,
+    },
+    fileName: {
+      type: String,
+      default: null, // original filename for documents
+    },
+    fileMimeType: {
+      type: String,
+      default: null, // e.g. "video/mp4", "application/pdf"
+    },
+    // ───────────────────────────────────────────
     status: {
       type: String,
       enum: ["sent", "delivered", "seen"],
@@ -38,5 +55,6 @@ const messageSchema = new mongoose.Schema(
 
 messageSchema.index({ senderId: 1, receiverId: 1 });
 messageSchema.index({ createdAt: -1 });
+
 const Message = mongoose.model("Message", messageSchema);
 export default Message;

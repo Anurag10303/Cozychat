@@ -1,5 +1,5 @@
 import express from "express";
-import upload from "../middleware/multer.js";
+import { uploadAvatar } from "../middleware/multer.js";
 import {
   allUsers,
   signIn,
@@ -14,7 +14,7 @@ const router = express.Router();
 router.post(
   "/signup",
   authLimiter,
-  upload.single("avatar"), // ✅ DIRECT USE
+  uploadAvatar.single("avatar"), // ✅ DIRECT USE
   signUp,
 );
 router.post("/login", authLimiter, signIn);

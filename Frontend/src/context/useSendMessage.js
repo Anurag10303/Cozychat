@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { v4 as uuidv4 } from "uuid"; // npm i uuid
+import { v4 as uuidv4 } from "uuid";
 import toast from "react-hot-toast";
 import useConversation from "../zustand/userConveration";
 import { useAuth } from "./AuthProvider";
@@ -7,61 +7,92 @@ import BASE_URL from "../config";
 
 const useSendMessage = () => {
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(0); // 0-100 upload progress
   const [authUser] = useAuth();
-
-  // FIX: setMessages (plural) matches the zustand store
   const { messages, setMessages, selectedConversation } = useConversation();
 
-  const sendMessages = async (message) => {
+  // sendMessages(text, file)
+  // text-only:  sendMessages("hello")
+  // file+caption: sendMessages("check this", file)
+  // file-only:  sendMessages("", file)
+  // useSendMessage.js
+  const sendMessages = async (message = "", file = null) => {
     if (!selectedConversation?._id) return;
+    if (!message.trim() && !file) return;
 
     setLoading(true);
+    setProgress(0);
+
     try {
       const token = localStorage.getItem("token");
-
-      // FIX: generate clientMessageId — controller requires it
       const clientMessageId = uuidv4();
+      const url = `${BASE_URL}/user/messages/send/${selectedConversation._id}`;
 
-      const res = await fetch(
-        `${BASE_URL}/user/messages/send/${selectedConversation._id}`,
-        {
+      let data;
+
+      if (file) {
+        // ── File upload: use XHR for progress tracking ──
+        const formData = new FormData();
+        formData.append("clientMessageId", clientMessageId);
+        if (message.trim()) formData.append("message", message.trim());
+        formData.append("file", file);
+
+        data = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.upload.addEventListener("progress", (e) => {
+            if (e.lengthComputable) {
+              setProgress(Math.round((e.loaded / e.total) * 100));
+            }
+          });
+          xhr.addEventListener("load", () => {
+            try {
+              const json = JSON.parse(xhr.responseText);
+              if (xhr.status >= 400)
+                reject(new Error(json.message || "Failed"));
+              else resolve(json);
+            } catch {
+              reject(new Error("Invalid response"));
+            }
+          });
+          xhr.addEventListener("error", () =>
+            reject(new Error("Network error")),
+          );
+          xhr.open("POST", url);
+          xhr.withCredentials = true;
+          if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+          xhr.send(formData);
+        });
+      } else {
+        // ── Text-only: use fetch, no progress bar ──
+        const formData = new FormData();
+        formData.append("clientMessageId", clientMessageId);
+        formData.append("message", message.trim());
+
+        const res = await fetch(url, {
           method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
           credentials: "include",
-          body: JSON.stringify({ message, clientMessageId }),
-        },
-      );
-
-      const json = await res.json();
-
-      // FIX: check for API-level errors (4xx / 5xx)
-      if (!res.ok) {
-        throw new Error(json.message || "Failed to send message");
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          body: formData,
+        });
+        data = await res.json();
+        if (!res.ok) throw new Error(data.message || "Failed");
       }
 
-      // FIX: extract json.data (the actual saved message object)
-      const savedMessage = json.data;
-
-      // Ensure senderId is always set (safety net)
-      const newMessage = {
-        ...savedMessage,
-        senderId: savedMessage.senderId ?? authUser?.user?._id,
+      const savedMessage = {
+        ...data.data,
+        senderId: data.data.senderId ?? authUser?.user?._id,
       };
-
-      // FIX: setMessages (plural) — append to existing array
-      setMessages([...messages, newMessage]);
+      setMessages([...messages, savedMessage]);
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error(error.message || "Could not send message");
     } finally {
       setLoading(false);
+      setProgress(0);
     }
   };
 
-  return { loading, sendMessages };
+  return { loading, progress, sendMessages };
 };
 
 export default useSendMessage;
