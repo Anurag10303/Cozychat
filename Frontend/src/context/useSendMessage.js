@@ -3,19 +3,16 @@ import { v4 as uuidv4 } from "uuid";
 import toast from "react-hot-toast";
 import useConversation from "../zustand/userConveration";
 import { useAuth } from "./AuthProvider";
+import { useE2EE } from "./E2EEContext";
 import BASE_URL from "../config";
 
 const useSendMessage = () => {
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(0); // 0-100 upload progress
+  const [progress, setProgress] = useState(0);
   const [authUser] = useAuth();
   const { messages, setMessages, selectedConversation } = useConversation();
+  const { encryptText } = useE2EE();
 
-  // sendMessages(text, file)
-  // text-only:  sendMessages("hello")
-  // file+caption: sendMessages("check this", file)
-  // file-only:  sendMessages("", file)
-  // useSendMessage.js
   const sendMessages = async (message = "", file = null) => {
     if (!selectedConversation?._id) return;
     if (!message.trim() && !file) return;
@@ -28,13 +25,18 @@ const useSendMessage = () => {
       const clientMessageId = uuidv4();
       const url = `${BASE_URL}/user/messages/send/${selectedConversation._id}`;
 
+      // ── Encrypt the text portion before sending ──────────────
+      let textToSend = message.trim();
+      if (textToSend) {
+        textToSend = await encryptText(selectedConversation._id, textToSend);
+      }
+
       let data;
 
       if (file) {
-        // ── File upload: use XHR for progress tracking ──
         const formData = new FormData();
         formData.append("clientMessageId", clientMessageId);
-        if (message.trim()) formData.append("message", message.trim());
+        if (textToSend) formData.append("message", textToSend); // encrypted caption
         formData.append("file", file);
 
         data = await new Promise((resolve, reject) => {
@@ -63,10 +65,9 @@ const useSendMessage = () => {
           xhr.send(formData);
         });
       } else {
-        // ── Text-only: use fetch, no progress bar ──
         const formData = new FormData();
         formData.append("clientMessageId", clientMessageId);
-        formData.append("message", message.trim());
+        formData.append("message", textToSend); // encrypted text
 
         const res = await fetch(url, {
           method: "POST",
@@ -80,6 +81,8 @@ const useSendMessage = () => {
 
       const savedMessage = {
         ...data.data,
+        // Store decrypted text locally so sender sees readable message immediately
+        _decryptedMessage: message.trim(),
         senderId: data.data.senderId ?? authUser?.user?._id,
       };
       setMessages([...messages, savedMessage]);

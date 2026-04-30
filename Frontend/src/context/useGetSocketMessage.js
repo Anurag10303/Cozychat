@@ -12,8 +12,6 @@ const useGetSocketMessage = () => {
     if (!socket) return;
 
     const handleNewMessage = (newMessage) => {
-      console.log("📩 RECEIVED:", newMessage);
-
       try {
         new Audio(sound).play();
       } catch (err) {}

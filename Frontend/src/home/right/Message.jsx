@@ -2,15 +2,11 @@
 
 import { useAuth } from "../../context/AuthProvider";
 import { useTheme } from "../../context/ThemeContext";
-import {
-  Check,
-  CheckCheck,
-  Download,
-  Play,
-  FileText,
-  Music,
-} from "lucide-react";
-import { useState, useRef } from "react";
+import { useE2EE } from "../../context/E2EEContext";
+import useConversation from "../../zustand/userConveration";
+import { Check, CheckCheck, Download, Play, Lock, Unlock } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { isEncrypted } from "../../utils/crypto";
 
 // ── Lightbox ──────────────────────────────────────────────────
 function Lightbox({ url, onClose }) {
@@ -92,7 +88,6 @@ function AudioPlayer({ url, isLight }) {
 
   const fmt = (s) =>
     `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-
   const bars = Array.from({ length: 28 }, (_, i) => {
     const heights = [
       4, 7, 12, 8, 14, 6, 10, 16, 9, 13, 5, 11, 15, 8, 12, 6, 14, 10, 7, 13, 9,
@@ -112,7 +107,7 @@ function AudioPlayer({ url, isLight }) {
       />
       <button
         onClick={toggle}
-        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 transition-all"
+        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
         style={{ background: accent }}
       >
         {playing ? (
@@ -125,30 +120,27 @@ function AudioPlayer({ url, isLight }) {
           <Play className="w-3.5 h-3.5 text-white ml-0.5" />
         )}
       </button>
-
       <div className="flex-1 flex flex-col gap-1">
         <div
           className="flex items-end gap-[2px] h-8 cursor-pointer"
           onClick={seek}
         >
-          {bars.map((h, i) => {
-            const filled = (i / bars.length) * 100 < progress;
-            return (
-              <div
-                key={i}
-                className="flex-1 rounded-full transition-all duration-100"
-                style={{
-                  height: `${h}px`,
-                  background: filled
+          {bars.map((h, i) => (
+            <div
+              key={i}
+              className="flex-1 rounded-full transition-all duration-100"
+              style={{
+                height: `${h}px`,
+                background:
+                  (i / bars.length) * 100 < progress
                     ? accent
                     : isLight
                       ? "rgba(127,119,221,0.25)"
                       : "rgba(175,169,236,0.2)",
-                  minWidth: "2px",
-                }}
-              />
-            );
-          })}
+                minWidth: "2px",
+              }}
+            />
+          ))}
         </div>
         <span
           className="text-xs"
@@ -163,15 +155,12 @@ function AudioPlayer({ url, isLight }) {
   );
 }
 
-// ── Video player ──────────────────────────
+// ── Video player ──────────────────────────────────────────────
 function VideoPlayer({ url, isLight }) {
   const [playing, setPlaying] = useState(false);
-  const videoRef = useRef(null);
-
   if (playing) {
     return (
       <video
-        ref={videoRef}
         src={url}
         controls
         autoPlay
@@ -179,7 +168,6 @@ function VideoPlayer({ url, isLight }) {
       />
     );
   }
-
   return (
     <div
       className="relative max-w-[260px] cursor-pointer group"
@@ -191,7 +179,7 @@ function VideoPlayer({ url, isLight }) {
         preload="metadata"
       />
       <div
-        className="absolute inset-0 flex items-center justify-center rounded-xl transition-opacity group-hover:opacity-90"
+        className="absolute inset-0 flex items-center justify-center rounded-xl"
         style={{ background: "rgba(0,0,0,0.35)" }}
       >
         <div
@@ -206,35 +194,26 @@ function VideoPlayer({ url, isLight }) {
 }
 
 // ── Document attachment ───────────────────────────────────────
-function DocumentAttachment({ url, fileName, mimeType, isLight }) {
+function DocumentAttachment({ url, fileName, isLight }) {
   const ext = fileName?.split(".").pop()?.toUpperCase() || "FILE";
   const [downloading, setDownloading] = useState(false);
 
   const handleClick = async (e) => {
     e.preventDefault();
-
     try {
       setDownloading(true);
       const response = await fetch(url);
-
       if (!response.ok) throw new Error("Download failed");
-
       const blob = await response.blob();
       const blobUrl = URL.createObjectURL(blob);
-
-      // Create a temporary <a> and click it — forces download
       const a = document.createElement("a");
       a.href = blobUrl;
       a.download = fileName || "document";
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-
-      // Clean up blob URL
       setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
-    } catch (err) {
-      console.error("Download error:", err);
-      // Fallback — open in new tab
+    } catch {
       window.open(url, "_blank", "noopener,noreferrer");
     } finally {
       setDownloading(false);
@@ -244,7 +223,7 @@ function DocumentAttachment({ url, fileName, mimeType, isLight }) {
   return (
     <a
       onClick={handleClick}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-xl no-underline transition-all hover:scale-[1.02]"
+      className="flex items-center gap-3 px-3 py-2.5 rounded-xl no-underline transition-all hover:scale-[1.02] cursor-pointer"
       style={{
         background: isLight
           ? "rgba(127,119,221,0.08)"
@@ -267,7 +246,6 @@ function DocumentAttachment({ url, fileName, mimeType, isLight }) {
       >
         {ext}
       </div>
-
       <div className="flex-1 min-w-0">
         <p
           className="text-xs font-medium truncate"
@@ -282,7 +260,6 @@ function DocumentAttachment({ url, fileName, mimeType, isLight }) {
           Tap to download
         </p>
       </div>
-
       <Download
         className="w-4 h-4 flex-shrink-0"
         style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
@@ -290,15 +267,114 @@ function DocumentAttachment({ url, fileName, mimeType, isLight }) {
     </a>
   );
 }
+
+// ── E2EE indicator badge ──────────────────────────────────────
+function EncryptionBadge({ encrypted, isLight }) {
+  if (encrypted) {
+    return (
+      <span
+        className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+        style={{
+          background: isLight
+            ? "rgba(61,214,140,0.12)"
+            : "rgba(61,214,140,0.1)",
+          color: "#3DD68C",
+          border: "1px solid rgba(61,214,140,0.25)",
+        }}
+        title="End-to-end encrypted"
+      >
+        <Lock className="w-2.5 h-2.5" />
+        E2EE
+      </span>
+    );
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
+      style={{
+        background: isLight ? "rgba(239,159,39,0.1)" : "rgba(239,159,39,0.08)",
+        color: "#EF9F27",
+        border: "1px solid rgba(239,159,39,0.2)",
+      }}
+      title="Legacy unencrypted message"
+    >
+      <Unlock className="w-2.5 h-2.5" />
+      Plain
+    </span>
+  );
+}
+
 // ── Main Message component ────────────────────────────────────
 function Message({ message }) {
   const [authUser] = useAuth();
   const { theme } = useTheme();
   const isLight = theme === "light";
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const { decryptText } = useE2EE();
+  const { selectedConversation } = useConversation();
+
+  const [displayText, setDisplayText] = useState(null);
+  const [decryptionDone, setDecryptionDone] = useState(false);
 
   const itsMe =
     message.senderId?.toString() === authUser?.user?._id?.toString();
+
+  // ── Decrypt the message text ────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+
+    async function decrypt() {
+      // If sender cached the plaintext locally (optimistic send), use it directly
+      if (message._decryptedMessage !== undefined) {
+        if (!cancelled) {
+          setDisplayText(message._decryptedMessage);
+          setDecryptionDone(true);
+        }
+        return;
+      }
+
+      const raw = message.message;
+      if (!raw) {
+        if (!cancelled) {
+          setDisplayText("");
+          setDecryptionDone(true);
+        }
+        return;
+      }
+
+      // Determine the partner's ID for key derivation
+      const partnerId = itsMe
+        ? selectedConversation?._id
+        : message.senderId?.toString();
+
+      if (!partnerId) {
+        if (!cancelled) {
+          setDisplayText(raw);
+          setDecryptionDone(true);
+        }
+        return;
+      }
+
+      const decrypted = await decryptText(partnerId, raw);
+      if (!cancelled) {
+        setDisplayText(decrypted);
+        setDecryptionDone(true);
+      }
+    }
+
+    setDecryptionDone(false);
+    decrypt();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    message.message,
+    message._decryptedMessage,
+    itsMe,
+    selectedConversation?._id,
+  ]);
+
+  const wasEncrypted = isEncrypted(message.message);
 
   const formattedTime = new Date(message.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
@@ -362,6 +438,7 @@ function Message({ message }) {
             className="px-3 py-2.5 transition-all duration-200 hover:scale-[1.01]"
             style={bubbleStyle}
           >
+            {/* File attachments */}
             {hasFile && message.fileType === "image" && (
               <img
                 src={message.fileUrl}
@@ -370,39 +447,46 @@ function Message({ message }) {
                 onClick={() => setLightboxOpen(true)}
               />
             )}
-
             {hasFile && message.fileType === "video" && (
               <div className="mb-1">
                 <VideoPlayer url={message.fileUrl} isLight={isLight} />
               </div>
             )}
-
             {hasFile && message.fileType === "audio" && (
               <div className="mb-1 py-1">
                 <AudioPlayer url={message.fileUrl} isLight={isLight} />
               </div>
             )}
-
             {hasFile && message.fileType === "document" && (
               <div className="mb-1">
                 <DocumentAttachment
                   url={message.fileUrl}
                   fileName={message.fileName}
-                  mimeType={message.fileMimeType}
                   isLight={isLight}
                 />
               </div>
             )}
 
-            {message.message && (
-              <p className="text-sm leading-relaxed break-words">
-                {message.message}
-              </p>
+            {/* Decrypted message text */}
+            {(message.message || message._decryptedMessage) && (
+              <div>
+                {!decryptionDone ? (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin opacity-50" />
+                    <span className="text-xs opacity-50">Decrypting…</span>
+                  </div>
+                ) : (
+                  <p className="text-sm leading-relaxed break-words">
+                    {displayText}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
+          {/* Timestamp + status + encryption badge */}
           <div
-            className={`flex items-center gap-1 mt-1 ${itsMe ? "pr-1" : "pl-1"}`}
+            className={`flex items-center gap-1.5 mt-1 ${itsMe ? "pr-1 flex-row-reverse" : "pl-1"}`}
           >
             <span
               className="text-xs"
@@ -411,6 +495,10 @@ function Message({ message }) {
               {formattedTime}
             </span>
             {getStatusIcon()}
+            {/* Only show badge when there's text */}
+            {(message.message || message._decryptedMessage) && (
+              <EncryptionBadge encrypted={wasEncrypted} isLight={isLight} />
+            )}
           </div>
         </div>
       </div>

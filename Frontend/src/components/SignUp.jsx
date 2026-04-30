@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { useAuth } from "../context/AuthProvider";
 import { useTheme } from "../context/ThemeContext";
+import { useE2EE } from "../context/E2EEContext";
 import { Link, useNavigate } from "react-router-dom";
 import BASE_URL from "../config";
 import ThemeToggle from "./ThemeToogle";
@@ -20,6 +22,8 @@ import {
 export default function SignUp() {
   const { theme } = useTheme();
   const navigate = useNavigate();
+  const [, setAuthUser] = useAuth();
+  const { bootstrapE2EE } = useE2EE();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [agreed, setAgreed] = useState(false);
@@ -71,6 +75,10 @@ export default function SignUp() {
       return;
     }
     setIsLoading(true);
+
+    // Capture password before formData is cleared — needed for E2EE key bootstrap
+    const passwordAtSignup = formData.password;
+
     const formPayload = new FormData();
     formPayload.append("fullName", formData.fullName);
     formPayload.append("email", formData.email);
@@ -87,9 +95,22 @@ export default function SignUp() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Signup failed");
 
-      showToast("Account created! Please login.", "success");
+      // Persist auth state — bootstrapE2EE reads from localStorage so this
+      // must happen before we call it.
+      localStorage.setItem(
+        "RealChat",
+        JSON.stringify({ token: data.token, user: data.user }),
+      );
+      setAuthUser({ token: data.token, user: data.user });
 
-      // ✅ Reset form
+      // Bootstrap E2EE keys for the new account while we still have the password.
+      // For a brand-new user this always takes the "generate fresh keypair" path
+      // in ensureKeyPairWithBackup, wraps the private key, and uploads the backup.
+      await bootstrapE2EE(passwordAtSignup);
+
+      showToast("Account created successfully!", "success");
+
+      // Reset form now that we're done with the password
       setFormData({
         fullName: "",
         email: "",
@@ -98,14 +119,10 @@ export default function SignUp() {
         avatar: null,
       });
 
-      // ✅ Wait for toast to show, then navigate
+      // Navigate to the main app — user is now fully logged in with E2EE ready
       setTimeout(() => {
-        navigate("/login"); // ✅ absolute path — was "login" before (broken)
+        navigate("/");
       }, 1000);
-
-      // ✅ Removed: localStorage.setItem + setAuthUser
-      // Setting authUser after signup caused the app to treat the user as
-      // logged in, which fought with navigate("/login") and broke redirection
     } catch (error) {
       console.error("Error during SignUp:", error.message);
       showToast(error.message || "SignUp failed. Please try again.", "error");

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthProvider";
 import { useTheme } from "../context/ThemeContext";
+import { useE2EE } from "../context/E2EEContext";
 import { Link } from "react-router-dom";
 import BASE_URL from "../config";
 import ThemeToggle from "./ThemeToogle";
@@ -18,6 +19,7 @@ import {
 export default function SignIn() {
   const [authUser, setAuthUser] = useAuth();
   const { theme } = useTheme();
+  const { bootstrapE2EE } = useE2EE();
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [toast, setToast] = useState({ message: "", type: "" });
   const [isLoading, setIsLoading] = useState(false);
@@ -35,37 +37,53 @@ export default function SignIn() {
     setTimeout(() => setToast({ message: "", type: "" }), 2500);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
-    const userInfo = { email: formData.email, password: formData.password };
 
-    fetch(`${BASE_URL}/user/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(userInfo),
-    })
-      .then((res) => {
-        if (!res.ok) throw new Error("Network response was not ok");
-        return res.json();
-      })
-      .then((data) => {
-        if (!data.token) throw new Error("Authentication token missing");
-        localStorage.setItem(
-          "RealChat",
-          JSON.stringify({ token: data.token, user: data.user }),
-        );
-        setAuthUser({ token: data.token, user: data.user });
-        setAuthUser(data);
-        setFormData({ email: "", password: "" });
-        showToast("logged in successfully", "success");
-      })
-      .catch((error) => {
-        console.error("Error during login:", error);
-        showToast("Invalid email or password", "error");
-      })
-      .finally(() => setIsLoading(false));
+    // Capture password before formData is cleared — needed for E2EE key bootstrap
+    const passwordAtLogin = formData.password;
+
+    try {
+      const res = await fetch(`${BASE_URL}/user/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Network response was not ok");
+      const data = await res.json();
+      if (!data.token) throw new Error("Authentication token missing");
+
+      // Persist auth state — bootstrapE2EE reads from localStorage so this
+      // must happen before we call it.
+      localStorage.setItem(
+        "RealChat",
+        JSON.stringify({ token: data.token, user: data.user }),
+      );
+      setAuthUser({ token: data.token, user: data.user });
+
+      // Bootstrap E2EE keys while we still have the plaintext password.
+      // This will:
+      //  - Restore keys from the server backup (returning user, same device or new)
+      //  - OR generate a fresh key pair and back it up (brand new user)
+      //  - OR use keys already in IndexedDB (same session / tab refresh)
+      // The password is used only to derive a wrapping key and is discarded after.
+      await bootstrapE2EE(passwordAtLogin);
+
+      // Clear form now that we're done with the password
+      setFormData({ email: "", password: "" });
+      showToast("Logged in successfully", "success");
+    } catch (error) {
+      console.error("Error during login:", error);
+      showToast("Invalid email or password", "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const avatars = ["AS", "PK", "RV"];
