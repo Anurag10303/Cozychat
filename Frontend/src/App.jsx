@@ -3,6 +3,7 @@ import Left from "../src/home/left/Left.jsx"
 import Right from "../src/home/right/Right.jsx"
 import SignUp from "./components/SignUp.jsx"
 import SignIn from "./components/SignIn.jsx"
+import Landing from "./components/Landing.jsx"
 import { Navigate, Route, Routes } from "react-router-dom"
 import { useAuth } from "./context/AuthProvider"
 import { ThemeProvider } from "./context/ThemeContext"
@@ -21,7 +22,7 @@ function App() {
                 <Right />
               </div>
             ) : (
-              <Navigate to="/login" />
+              <Landing />
             )
           }
         />

@@ -28,7 +28,11 @@ app.use(cookieParser());
 // app.use(generalLimiter);
 app.use(
   cors({
-    origin: ["http://localhost:5173", "https://cozychat1.onrender.com"],
+    origin: [
+      "http://localhost:5174",
+      "https://cozychat1.onrender.com",
+      "http://localhost:5173",
+    ],
     credentials: true,
   }),
 );
