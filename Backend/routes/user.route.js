@@ -4,6 +4,8 @@ import {
   allUsers,
   signIn,
   signOut,
+  googleAuth,
+  authConfig,
   signUp,
   upsertPublicKey,
   getPublicKey,
@@ -18,6 +20,8 @@ const router = express.Router();
 // ── Auth ──────────────────────────────────────────────────────
 router.post("/signup", authLimiter, uploadAvatar.single("avatar"), signUp);
 router.post("/login", authLimiter, signIn);
+router.get("/auth/config", authConfig);
+router.post("/google", authLimiter, googleAuth);
 router.post("/logout", signOut);
 
 // ── Users ─────────────────────────────────────────────────────

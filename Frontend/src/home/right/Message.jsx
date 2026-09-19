@@ -1,60 +1,87 @@
-"use client";
-
 import { useAuth } from "../../context/AuthProvider";
-import { useTheme } from "../../context/ThemeContext";
 import { useE2EE } from "../../context/E2EEContext";
 import useConversation from "../../zustand/userConveration";
-import { Check, CheckCheck, Download, Play, Lock, Unlock } from "lucide-react";
+import { Check, CheckCheck, Download, FileText, Lock, Pause, Play, Unlock, X } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { isEncrypted } from "../../utils/crypto";
+import { EASE } from "../../lib/motion";
 
 // ── Lightbox ──────────────────────────────────────────────────
-function Lightbox({ url, onClose }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.88)", backdropFilter: "blur(8px)" }}
-      onClick={onClose}
-    >
-      <div
-        className="relative max-w-[90vw] max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <img
-          src={url}
-          alt="full"
-          className="max-w-full max-h-[85vh] rounded-xl object-contain"
-        />
-        <div className="absolute top-3 right-3 flex gap-2">
-          <a
-            href={url}
-            download
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ background: "rgba(255,255,255,0.15)" }}
+function Lightbox({ url, open, onClose }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => e.key === "Escape" && onClose();
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  return createPortal(
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={onClose}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Image preview"
+        >
+          <motion.img
+            src={url}
+            alt="Full size attachment"
+            className="max-h-[88dvh] max-w-full rounded-2xl object-contain shadow-2xl"
+            initial={{ scale: 0.94, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.96, opacity: 0 }}
+            transition={{ duration: 0.28, ease: EASE }}
             onClick={(e) => e.stopPropagation()}
-          >
-            <Download className="w-4 h-4 text-white" />
-          </a>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold"
-            style={{ background: "rgba(255,255,255,0.15)" }}
-          >
-            ✕
-          </button>
-        </div>
-      </div>
-    </div>
+          />
+          <div className="safe-top absolute top-4 right-4 flex gap-2">
+            <a
+              href={url}
+              download
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20"
+              onClick={(e) => e.stopPropagation()}
+              aria-label="Download image"
+            >
+              <Download className="h-4 w-4" />
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              className="grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white backdrop-blur transition-colors hover:bg-white/20"
+              aria-label="Close preview"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>,
+    document.body,
   );
 }
 
 // ── Audio waveform player ─────────────────────────────────────
-function AudioPlayer({ url, isLight }) {
+const BAR_HEIGHTS = [
+  4, 7, 12, 8, 14, 6, 10, 16, 9, 13, 5, 11, 15, 8, 12, 6, 14, 10, 7, 13, 9, 5, 11, 16, 8, 12, 7, 4,
+];
+
+function AudioPlayer({ url, mine }) {
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const audioRef = useRef(null);
-  const accent = isLight ? "#7F77DD" : "#AFA9EC";
 
   const toggle = () => {
     if (!audioRef.current) return;
@@ -82,22 +109,13 @@ function AudioPlayer({ url, isLight }) {
   const seek = (e) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = (e.clientX - rect.left) / rect.width;
-    if (audioRef.current)
-      audioRef.current.currentTime = pct * audioRef.current.duration;
+    if (audioRef.current) audioRef.current.currentTime = pct * audioRef.current.duration;
   };
 
-  const fmt = (s) =>
-    `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-  const bars = Array.from({ length: 28 }, (_, i) => {
-    const heights = [
-      4, 7, 12, 8, 14, 6, 10, 16, 9, 13, 5, 11, 15, 8, 12, 6, 14, 10, 7, 13, 9,
-      5, 11, 16, 8, 12, 7, 4,
-    ];
-    return heights[i % heights.length];
-  });
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
   return (
-    <div className="flex items-center gap-3 w-52">
+    <div className="flex w-[min(15rem,62vw)] items-center gap-3 py-1">
       <audio
         ref={audioRef}
         src={url}
@@ -105,50 +123,36 @@ function AudioPlayer({ url, isLight }) {
         onLoadedMetadata={onLoaded}
         onEnded={onEnded}
       />
-      <button
+      <motion.button
+        type="button"
         onClick={toggle}
-        className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-        style={{ background: accent }}
+        whileTap={{ scale: 0.9 }}
+        aria-label={playing ? "Pause" : "Play"}
+        className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${
+          mine ? "bg-white text-accent" : "bg-accent text-accent-fg"
+        }`}
       >
-        {playing ? (
-          <span className="w-3 h-3 flex gap-0.5">
-            {[0, 1].map((i) => (
-              <span key={i} className="w-1 h-full rounded-sm bg-white" />
-            ))}
-          </span>
-        ) : (
-          <Play className="w-3.5 h-3.5 text-white ml-0.5" />
-        )}
-      </button>
-      <div className="flex-1 flex flex-col gap-1">
-        <div
-          className="flex items-end gap-[2px] h-8 cursor-pointer"
-          onClick={seek}
-        >
-          {bars.map((h, i) => (
-            <div
-              key={i}
-              className="flex-1 rounded-full transition-all duration-100"
-              style={{
-                height: `${h}px`,
-                background:
-                  (i / bars.length) * 100 < progress
-                    ? accent
-                    : isLight
-                      ? "rgba(127,119,221,0.25)"
-                      : "rgba(175,169,236,0.2)",
-                minWidth: "2px",
-              }}
-            />
-          ))}
+        {playing ? <Pause className="h-3.5 w-3.5" fill="currentColor" /> : <Play className="ml-0.5 h-3.5 w-3.5" fill="currentColor" />}
+      </motion.button>
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex h-7 cursor-pointer items-center gap-[2px]" onClick={seek}>
+          {BAR_HEIGHTS.map((h, i) => {
+            const active = (i / BAR_HEIGHTS.length) * 100 < progress;
+            return (
+              <span
+                key={i}
+                className={`min-w-[2px] flex-1 rounded-full transition-colors duration-150 ${
+                  mine
+                    ? active ? "bg-white" : "bg-white/35"
+                    : active ? "bg-accent" : "bg-line-strong"
+                }`}
+                style={{ height: `${h}px` }}
+              />
+            );
+          })}
         </div>
-        <span
-          className="text-xs"
-          style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
-        >
-          {duration
-            ? fmt(duration * (progress / 100)) + " / " + fmt(duration)
-            : "0:00"}
+        <span className={`font-mono text-[10.5px] tabular-nums ${mine ? "text-white/75" : "text-muted"}`}>
+          {duration ? fmt(duration * (progress / 100)) + " / " + fmt(duration) : "0:00"}
         </span>
       </div>
     </div>
@@ -156,45 +160,31 @@ function AudioPlayer({ url, isLight }) {
 }
 
 // ── Video player ──────────────────────────────────────────────
-function VideoPlayer({ url, isLight }) {
+function VideoPlayer({ url }) {
   const [playing, setPlaying] = useState(false);
+  const cls = "block w-[min(18rem,68vw)] max-h-[20rem] rounded-[14px] object-cover bg-black";
   if (playing) {
-    return (
-      <video
-        src={url}
-        controls
-        autoPlay
-        className="max-w-[260px] max-h-[200px] rounded-xl object-cover"
-      />
-    );
+    return <video src={url} controls autoPlay playsInline className={cls} />;
   }
   return (
-    <div
-      className="relative max-w-[260px] cursor-pointer group"
+    <button
+      type="button"
+      className="group relative block"
       onClick={() => setPlaying(true)}
+      aria-label="Play video"
     >
-      <video
-        src={url + "#t=0.5"}
-        className="max-w-[260px] max-h-[200px] rounded-xl object-cover"
-        preload="metadata"
-      />
-      <div
-        className="absolute inset-0 flex items-center justify-center rounded-xl"
-        style={{ background: "rgba(0,0,0,0.35)" }}
-      >
-        <div
-          className="w-12 h-12 rounded-full flex items-center justify-center"
-          style={{ background: "rgba(255,255,255,0.9)" }}
-        >
-          <Play className="w-5 h-5 ml-0.5" style={{ color: "#1A1228" }} />
-        </div>
-      </div>
-    </div>
+      <video src={url + "#t=0.5"} className={cls} preload="metadata" playsInline muted />
+      <span className="absolute inset-0 grid place-items-center rounded-[14px] bg-black/25 transition-colors group-hover:bg-black/35">
+        <span className="grid h-12 w-12 place-items-center rounded-full bg-white/95 text-[#111118] shadow-lg transition-transform duration-200 group-hover:scale-105">
+          <Play className="ml-0.5 h-5 w-5" fill="currentColor" />
+        </span>
+      </span>
+    </button>
   );
 }
 
 // ── Document attachment ───────────────────────────────────────
-function DocumentAttachment({ url, fileName, isLight }) {
+function DocumentAttachment({ url, fileName, mine }) {
   const ext = fileName?.split(".").pop()?.toUpperCase() || "FILE";
   const [downloading, setDownloading] = useState(false);
 
@@ -221,94 +211,46 @@ function DocumentAttachment({ url, fileName, isLight }) {
   };
 
   return (
-    <a
+    <button
+      type="button"
       onClick={handleClick}
-      className="flex items-center gap-3 px-3 py-2.5 rounded-xl no-underline transition-all hover:scale-[1.02] cursor-pointer"
-      style={{
-        background: isLight
-          ? "rgba(127,119,221,0.08)"
-          : "rgba(175,169,236,0.07)",
-        border: isLight
-          ? "1px solid rgba(127,119,221,0.18)"
-          : "1px solid rgba(175,169,236,0.12)",
-        minWidth: "180px",
-        maxWidth: "240px",
-      }}
+      disabled={downloading}
+      className={`flex w-[min(16rem,64vw)] items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+        mine ? "bg-white/12 hover:bg-white/20" : "border border-line bg-surface-2 hover:bg-surface-3"
+      }`}
     >
-      <div
-        className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold"
-        style={{
-          background: isLight
-            ? "rgba(127,119,221,0.15)"
-            : "rgba(175,169,236,0.12)",
-          color: isLight ? "#7F77DD" : "#AFA9EC",
-        }}
-      >
-        {ext}
-      </div>
-      <div className="flex-1 min-w-0">
-        <p
-          className="text-xs font-medium truncate"
-          style={{ color: isLight ? "#1A1228" : "#F0EAF8" }}
-        >
-          {fileName || "Document"}
-        </p>
-        <p
-          className="text-xs"
-          style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
-        >
-          Tap to download
-        </p>
-      </div>
-      <Download
-        className="w-4 h-4 flex-shrink-0"
-        style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
-      />
-    </a>
-  );
-}
-
-// ── E2EE indicator badge ──────────────────────────────────────
-function EncryptionBadge({ encrypted, isLight }) {
-  if (encrypted) {
-    return (
       <span
-        className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-        style={{
-          background: isLight
-            ? "rgba(61,214,140,0.12)"
-            : "rgba(61,214,140,0.1)",
-          color: "#3DD68C",
-          border: "1px solid rgba(61,214,140,0.25)",
-        }}
-        title="End-to-end encrypted"
+        className={`relative grid h-10 w-9 shrink-0 place-items-center rounded-lg ${
+          mine ? "bg-white/20 text-white" : "bg-accent-soft text-accent-text"
+        }`}
       >
-        <Lock className="w-2.5 h-2.5" />
-        E2EE
+        <FileText className="h-4 w-4" />
+        <span
+          className={`absolute -bottom-1.5 rounded px-1 font-mono text-[8px] leading-3 font-semibold ${
+            mine ? "bg-white text-accent" : "bg-accent text-accent-fg"
+          }`}
+        >
+          {ext.slice(0, 4)}
+        </span>
       </span>
-    );
-  }
-  return (
-    <span
-      className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full"
-      style={{
-        background: isLight ? "rgba(239,159,39,0.1)" : "rgba(239,159,39,0.08)",
-        color: "#EF9F27",
-        border: "1px solid rgba(239,159,39,0.2)",
-      }}
-      title="Legacy unencrypted message"
-    >
-      <Unlock className="w-2.5 h-2.5" />
-      Plain
-    </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-medium">{fileName || "Document"}</span>
+        <span className={`block text-[11px] ${mine ? "text-white/70" : "text-muted"}`}>
+          {downloading ? "Downloading…" : "Tap to download"}
+        </span>
+      </span>
+      {downloading ? (
+        <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent opacity-70" />
+      ) : (
+        <Download className={`h-4 w-4 shrink-0 ${mine ? "text-white/85" : "text-muted"}`} />
+      )}
+    </button>
   );
 }
 
 // ── Main Message component ────────────────────────────────────
-function Message({ message }) {
+function Message({ message, groupStart = true, groupEnd = true }) {
   const [authUser] = useAuth();
-  const { theme } = useTheme();
-  const isLight = theme === "light";
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const { decryptText } = useE2EE();
   const { selectedConversation } = useConversation();
@@ -316,8 +258,7 @@ function Message({ message }) {
   const [displayText, setDisplayText] = useState(null);
   const [decryptionDone, setDecryptionDone] = useState(false);
 
-  const itsMe =
-    message.senderId?.toString() === authUser?.user?._id?.toString();
+  const itsMe = message.senderId?.toString() === authUser?.user?._id?.toString();
 
   // ── Decrypt the message text ────────────────────────────────
   useEffect(() => {
@@ -343,9 +284,7 @@ function Message({ message }) {
       }
 
       // Determine the partner's ID for key derivation
-      const partnerId = itsMe
-        ? selectedConversation?._id
-        : message.senderId?.toString();
+      const partnerId = itsMe ? selectedConversation?._id : message.senderId?.toString();
 
       if (!partnerId) {
         if (!cancelled) {
@@ -367,141 +306,148 @@ function Message({ message }) {
     return () => {
       cancelled = true;
     };
-  }, [
-    message.message,
-    message._decryptedMessage,
-    itsMe,
-    selectedConversation?._id,
-  ]);
+  }, [message.message, message._decryptedMessage, itsMe, selectedConversation?._id]);
 
   const wasEncrypted = isEncrypted(message.message);
+  const created = new Date(message.createdAt);
+  const formattedTime = created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const fullTime = created.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 
-  const formattedTime = new Date(message.createdAt).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const hasFile = !!message.fileUrl;
+  const hasText = !!(message.message || message._decryptedMessage);
+  const isVisualMedia = hasFile && (message.fileType === "image" || message.fileType === "video");
 
-  const getStatusIcon = () => {
+  // Corners tighten where consecutive messages from the same person meet.
+  const R = "18px";
+  const r = "6px";
+  const radius = itsMe
+    ? `${R} ${groupStart ? R : r} ${r} ${R}`
+    : `${groupStart ? R : r} ${R} ${R} ${r}`;
+
+  const renderStatus = () => {
     if (!itsMe) return null;
-    const color =
-      message.status === "seen" ? "#4FC3F7" : isLight ? "#9E88B8" : "#7A6A90";
-    return message.status === "sent" ? (
-      <Check className="w-3 h-3" style={{ color }} />
-    ) : (
-      <CheckCheck className="w-3 h-3" style={{ color }} />
+    const seen = message.status === "seen";
+    const Icon = message.status === "sent" ? Check : CheckCheck;
+    return (
+      <Icon
+        className={`h-3.5 w-3.5 ${seen ? "text-sky-200" : "text-white/70"}`}
+        aria-label={message.status || "sent"}
+      />
     );
   };
 
-  const bubbleStyle = itsMe
-    ? {
-        background: isLight ? "rgba(127,119,221,0.14)" : "rgba(100,80,200,0.3)",
-        border: isLight
-          ? "1px solid rgba(127,119,221,0.28)"
-          : "1px solid rgba(175,169,236,0.2)",
-        borderRadius: "18px 18px 4px 18px",
-        backdropFilter: "blur(12px)",
-        color: isLight ? "#26215C" : "#CECBF6",
-      }
-    : {
-        background: isLight ? "rgba(255,255,255,0.88)" : "rgba(30,20,48,0.9)",
-        border: isLight
-          ? "1px solid rgba(127,80,160,0.1)"
-          : "1px solid rgba(140,100,200,0.14)",
-        borderRadius: "18px 18px 18px 4px",
-        backdropFilter: "blur(12px)",
-        color: isLight ? "#1E1828" : "#E8DFF5",
-      };
+  const renderMeta = (overlay = false) => (
+    <span
+      className={`inline-flex items-center gap-1 text-[10.5px] leading-none tabular-nums select-none ${
+        overlay
+          ? "rounded-full bg-black/45 px-2 py-1 text-white backdrop-blur-sm"
+          : itsMe
+            ? "text-white/70"
+            : "text-subtle"
+      }`}
+      title={fullTime}
+    >
+      {hasText &&
+        (wasEncrypted ? (
+          <Lock className="h-2.5 w-2.5 opacity-80" aria-label="End-to-end encrypted" />
+        ) : (
+          <Unlock
+            className={`h-2.5 w-2.5 ${itsMe || overlay ? "text-amber-200" : "text-warning"}`}
+            aria-label="Not encrypted (legacy message)"
+          />
+        ))}
+      {formattedTime}
+      {renderStatus()}
+    </span>
+  );
 
-  const hasFile = !!message.fileUrl;
+  const metaPosition = !hasText
+    ? "mt-1 flex justify-end"
+    : isVisualMedia
+      ? "absolute right-3.5 bottom-2"
+      : "absolute right-3 bottom-1.5";
 
   return (
     <>
-      {lightboxOpen && message.fileType === "image" && (
-        <Lightbox
-          url={message.fileUrl}
-          onClose={() => setLightboxOpen(false)}
-        />
+      {message.fileType === "image" && (
+        <Lightbox url={message.fileUrl} open={lightboxOpen} onClose={() => setLightboxOpen(false)} />
       )}
 
-      <div
-        className={`flex mb-2 ${itsMe ? "justify-end" : "justify-start"}`}
-        style={{
-          animation: itsMe
-            ? "slideInRight 0.25s ease-out"
-            : "slideInLeft 0.25s ease-out",
-        }}
+      <motion.div
+        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.22, ease: EASE }}
+        className={`flex ${itsMe ? "justify-end" : "justify-start"} ${groupEnd ? "mb-2.5" : "mb-0.5"}`}
+        style={{ transformOrigin: itsMe ? "bottom right" : "bottom left" }}
       >
         <div
-          className={`flex flex-col max-w-[72%] ${itsMe ? "items-end" : "items-start"}`}
+          className={`relative max-w-[86%] xs:max-w-[80%] sm:max-w-[72%] lg:max-w-[64%] ${
+            itsMe
+              ? "bg-bubble-out bubble-gradient text-bubble-out-fg shadow-[0_2px_10px_-4px_rgba(106,90,224,0.5)]"
+              : "border border-line bg-bubble-in text-bubble-in-fg shadow-soft"
+          } ${isVisualMedia ? "p-1" : "px-3.5 py-2"}`}
+          style={{ borderRadius: radius }}
         >
-          <div
-            className="px-3 py-2.5 transition-all duration-200 hover:scale-[1.01]"
-            style={bubbleStyle}
-          >
-            {/* File attachments */}
-            {hasFile && message.fileType === "image" && (
+          {/* File attachments */}
+          {hasFile && message.fileType === "image" && (
+            <button
+              type="button"
+              onClick={() => setLightboxOpen(true)}
+              className="relative block overflow-hidden rounded-[14px]"
+              aria-label="Open image"
+            >
               <img
                 src={message.fileUrl}
-                alt="attachment"
-                className="max-w-[260px] max-h-[200px] rounded-xl object-cover mb-1 cursor-pointer hover:opacity-90 transition-opacity"
-                onClick={() => setLightboxOpen(true)}
+                alt="Attachment"
+                loading="lazy"
+                decoding="async"
+                className="block max-h-[20rem] w-[min(18rem,68vw)] object-cover transition-transform duration-300 hover:scale-[1.02]"
               />
-            )}
-            {hasFile && message.fileType === "video" && (
-              <div className="mb-1">
-                <VideoPlayer url={message.fileUrl} isLight={isLight} />
-              </div>
-            )}
-            {hasFile && message.fileType === "audio" && (
-              <div className="mb-1 py-1">
-                <AudioPlayer url={message.fileUrl} isLight={isLight} />
-              </div>
-            )}
-            {hasFile && message.fileType === "document" && (
-              <div className="mb-1">
-                <DocumentAttachment
-                  url={message.fileUrl}
-                  fileName={message.fileName}
-                  isLight={isLight}
-                />
-              </div>
-            )}
+              {!hasText && (
+                <span className="absolute right-2 bottom-2">{renderMeta(true)}</span>
+              )}
+            </button>
+          )}
+          {hasFile && message.fileType === "video" && (
+            <div className="relative">
+              <VideoPlayer url={message.fileUrl} />
+              {!hasText && (
+                <span className="pointer-events-none absolute top-2 right-2">{renderMeta(true)}</span>
+              )}
+            </div>
+          )}
+          {hasFile && message.fileType === "audio" && <AudioPlayer url={message.fileUrl} mine={itsMe} />}
+          {hasFile && message.fileType === "document" && (
+            <div className="py-1">
+              <DocumentAttachment url={message.fileUrl} fileName={message.fileName} mine={itsMe} />
+            </div>
+          )}
 
-            {/* Decrypted message text */}
-            {(message.message || message._decryptedMessage) && (
-              <div>
-                {!decryptionDone ? (
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin opacity-50" />
-                    <span className="text-xs opacity-50">Decrypting…</span>
-                  </div>
-                ) : (
-                  <p className="text-sm leading-relaxed break-words">
-                    {displayText}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+          {/* Decrypted message text */}
+          {hasText && (
+            <div className={isVisualMedia ? "px-2.5 pt-1.5 pb-1" : hasFile ? "pt-1" : ""}>
+              {!decryptionDone ? (
+                <span className="inline-flex items-center gap-1.5 py-0.5 text-xs opacity-60">
+                  <span className="h-3 w-3 animate-spin rounded-full border border-current border-t-transparent" />
+                  Decrypting…
+                </span>
+              ) : (
+                <p className="text-[0.9375rem] leading-[1.45] break-words whitespace-pre-wrap">
+                  {displayText}
+                  {/* Invisible spacer reserves room so the floating meta never overlaps text */}
+                  <span
+                    className={`invisible ml-2 inline-block ${itsMe ? "w-[5.25rem]" : "w-[4.25rem]"}`}
+                    aria-hidden="true"
+                  />
+                </p>
+              )}
+            </div>
+          )}
 
-          {/* Timestamp + status + encryption badge */}
-          <div
-            className={`flex items-center gap-1.5 mt-1 ${itsMe ? "pr-1 flex-row-reverse" : "pl-1"}`}
-          >
-            <span
-              className="text-xs"
-              style={{ color: isLight ? "#B098C0" : "#6A5A80" }}
-            >
-              {formattedTime}
-            </span>
-            {getStatusIcon()}
-            {/* Only show badge when there's text */}
-            {(message.message || message._decryptedMessage) && (
-              <EncryptionBadge encrypted={wasEncrypted} isLight={isLight} />
-            )}
-          </div>
+          {/* Timestamp + status + encryption */}
+          {(hasText || !isVisualMedia) && <span className={metaPosition}>{renderMeta()}</span>}
         </div>
-      </div>
+      </motion.div>
     </>
   );
 }

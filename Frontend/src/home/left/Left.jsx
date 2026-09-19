@@ -1,87 +1,64 @@
-"use client";
+import { useMemo, useState } from "react";
 import LogOut from "./LogOut";
 import Search from "./Search";
 import Users from "./Users";
 import ThemeToggle from "../../components/ThemeToogle";
-import { useTheme } from "../../context/ThemeContext";
-import { MessageCircle } from "lucide-react";
+import Logo from "../../components/ui/Logo";
+import useGetAllUsers from "../../context/useGetAllUsers";
+import useConversation from "../../zustand/userConveration";
 
 function Left() {
-  const { theme } = useTheme();
-  const isLight = theme === "light";
+  // Fetched once here and shared, so the list and search stay in sync.
+  const [allUsers, loading] = useGetAllUsers();
+  const { setSelectedConversation } = useConversation();
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return allUsers;
+    return allUsers.filter(
+      (u) => u.fullName?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q),
+    );
+  }, [allUsers, query]);
+
+  const onlineCount = allUsers.filter((u) => u.isOnline).length;
+
+  const selectFirstMatch = () => {
+    if (filtered[0]) {
+      setSelectedConversation(filtered[0]);
+      setQuery("");
+    }
+  };
 
   return (
-    <div
-      className="w-80 flex flex-col h-full flex-shrink-0"
-      style={{
-        background: isLight ? "rgba(255,252,255,0.88)" : "rgba(18,10,32,0.95)",
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-        borderRight: isLight
-          ? "1px solid rgba(127,119,221,0.15)"
-          : "1px solid rgba(140,100,200,0.12)",
-      }}
-    >
-      {/* Header */}
-      <div
-        className="p-4 flex flex-col gap-3"
-        style={{
-          borderBottom: isLight
-            ? "1px solid rgba(127,119,221,0.12)"
-            : "1px solid rgba(140,100,200,0.1)",
-          background: isLight ? "rgba(248,242,255,0.6)" : "rgba(22,12,40,0.6)",
-        }}
-      >
-        <div className="flex items-center gap-3">
-          {/* Logo */}
-          <div
-            className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
-            style={{
-              background: "linear-gradient(135deg, #7F77DD, #D4537E)",
-              boxShadow: "0 4px 12px rgba(127,119,221,0.35)",
-            }}
-          >
-            <MessageCircle className="w-4 h-4 text-white" />
-          </div>
-
-          <h1
-            className="text-lg font-extrabold tracking-tight"
-            style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              background: "linear-gradient(135deg, #7F77DD, #D4537E)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            CozyChat
-          </h1>
-
-          <div className="ml-auto">
-            <ThemeToggle />
-          </div>
+    <aside className="safe-top flex h-full w-full flex-col border-r border-line bg-sidebar">
+      <header className="flex flex-col gap-4 px-4 pt-4 pb-3 sm:px-5">
+        <div className="flex items-center justify-between">
+          <Logo size={34} />
+          <ThemeToggle />
         </div>
 
-        <Search />
+        <div className="flex items-end justify-between">
+          <h2 className="text-[1.375rem] font-semibold tracking-[-0.02em] text-fg">Chats</h2>
+          {!loading && allUsers.length > 0 && (
+            <span className="mb-1 inline-flex items-center gap-1.5 text-xs text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-online" />
+              {onlineCount} online
+            </span>
+          )}
+        </div>
+
+        <Search value={query} onChange={setQuery} onSubmit={selectFirstMatch} />
+      </header>
+
+      <div className="min-h-0 flex-1">
+        <Users users={filtered} loading={loading} query={query} />
       </div>
 
-      {/* User list */}
-      <div className="flex-1 overflow-hidden">
-        <Users />
-      </div>
-
-      {/* Footer */}
-      <div
-        style={{
-          borderTop: isLight
-            ? "1px solid rgba(127,119,221,0.12)"
-            : "1px solid rgba(140,100,200,0.1)",
-          background: isLight ? "rgba(248,242,255,0.6)" : "rgba(22,12,40,0.6)",
-        }}
-      >
+      <footer className="border-t border-line">
         <LogOut />
-      </div>
-    </div>
+      </footer>
+    </aside>
   );
 }
 

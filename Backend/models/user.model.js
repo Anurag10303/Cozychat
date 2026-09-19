@@ -14,9 +14,18 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    // Optional for accounts created through Google sign-in.
     password: {
       type: String,
-      required: true,
+      required: function () {
+        return !this.googleId;
+      },
+    },
+    // Google account subject ("sub" claim). Stable per Google account.
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
     lastSeen: {
       type: Date,

@@ -1,157 +1,84 @@
-"use client";
-
+import { motion } from "framer-motion";
+import { ArrowLeft, Lock, MoreVertical, Phone, Video } from "lucide-react";
+import { useLocation, useNavigate } from "react-router-dom";
 import useConversation from "../../zustand/userConveration";
 import { useSocketContext } from "../../context/SocketContext";
-import { useTheme } from "../../context/ThemeContext";
-import { Phone, Video, MoreVertical } from "lucide-react";
-import BASE_URL from "../../config";
+import Avatar from "../../components/ui/Avatar";
 
-const AVATAR_COLORS = [
-  {
-    light: { bg: "#EEEDFE", text: "#3C3489" },
-    dark: { bg: "#1C1440", text: "#CECBF6" },
-  },
-  {
-    light: { bg: "#FBEAF0", text: "#72243E" },
-    dark: { bg: "#2A0C1A", text: "#ED93B1" },
-  },
-  {
-    light: { bg: "#E1F5EE", text: "#085041" },
-    dark: { bg: "#061A12", text: "#5DCAA5" },
-  },
-  {
-    light: { bg: "#E6F1FB", text: "#0C447C" },
-    dark: { bg: "#06142A", text: "#85B7EB" },
-  },
-];
-
-function getColorIndex(name = "") {
-  let sum = 0;
-  for (let i = 0; i < name.length; i++) sum += name.charCodeAt(i);
-  return sum % AVATAR_COLORS.length;
-}
-
-function getInitials(name = "") {
-  return name
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+function HeaderButton({ icon: Icon, label, className = "" }) {
+  return (
+    <motion.button
+      type="button"
+      whileTap={{ scale: 0.92 }}
+      title={label}
+      aria-label={label}
+      className={`grid h-9 w-9 place-items-center rounded-xl text-muted transition-colors hover:bg-surface-2 hover:text-fg ${className}`}
+    >
+      <Icon className="h-[18px] w-[18px]" />
+    </motion.button>
+  );
 }
 
 function Chatuser() {
-  const { selectedConversation } = useConversation();
+  const { selectedConversation, setSelectedConversation } = useConversation();
   const { onlineUser } = useSocketContext();
-  const { theme } = useTheme();
-  const isLight = theme === "light";
+  const location = useLocation();
+  const navigate = useNavigate();
 
   const isOnline =
-    selectedConversation &&
-    onlineUser.map(String).includes(String(selectedConversation._id));
-  const colorIdx = getColorIndex(selectedConversation?.fullName || "");
-  const colors = AVATAR_COLORS[colorIdx][isLight ? "light" : "dark"];
+    selectedConversation && onlineUser.map(String).includes(String(selectedConversation._id));
 
-  const actionBtnStyle = {
-    width: "34px",
-    height: "34px",
-    borderRadius: "10px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: isLight ? "rgba(127,119,221,0.08)" : "rgba(175,169,236,0.08)",
-    border: isLight
-      ? "1px solid rgba(127,119,221,0.15)"
-      : "1px solid rgba(175,169,236,0.1)",
-    cursor: "pointer",
-    transition: "all 0.2s",
+  const goBack = () => {
+    // Pop the phone-only #chat entry when present so history stays tidy.
+    if (location.hash === "#chat") navigate(-1);
+    else setSelectedConversation(null);
   };
 
   return (
-    <div className="h-16 px-5 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
-        {/* Avatar */}
-        <div className="relative">
-          <div
-            className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold overflow-hidden"
-            style={{ background: colors.bg, color: colors.text }}
-          >
-            {selectedConversation?.avatar?.trim() ? (
-              <img
-                src={selectedConversation.avatar}
-                alt={selectedConversation?.fullName}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.target.style.display = "none";
-                }}
-              />
-            ) : (
-              getInitials(selectedConversation?.fullName || "")
-            )}
-          </div>
-          {isOnline && (
-            <div
-              className="absolute bottom-0 right-0 w-3 h-3 rounded-full"
-              style={{
-                background: "#3DD68C",
-                border: `2px solid ${isLight ? "rgba(255,252,255,0.95)" : "rgba(18,10,32,0.95)"}`,
-              }}
-            />
-          )}
-        </div>
+    <header className="safe-top z-10 shrink-0 border-b border-line bg-bar">
+      <div className="flex h-16 items-center gap-2 px-2 sm:gap-3 sm:px-4 lg:px-6">
+        <motion.button
+          type="button"
+          onClick={goBack}
+          whileTap={{ scale: 0.9 }}
+          aria-label="Back to chats"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-fg hover:bg-surface-2 md:hidden"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </motion.button>
 
-        <div>
-          <h2
-            className="text-sm font-bold"
-            style={{
-              color: isLight ? "#1A1228" : "#F0EAF8",
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-            }}
-          >
+        <Avatar
+          name={selectedConversation?.fullName}
+          src={selectedConversation?.avatar}
+          size={40}
+          online={isOnline}
+          ringClass="border-elevated"
+        />
+
+        <div className="min-w-0 flex-1">
+          <h2 className="truncate text-[0.9375rem] font-semibold tracking-[-0.01em] text-fg">
             {selectedConversation?.fullName || "Unknown"}
           </h2>
-          <p
-            className="text-xs font-medium mt-0.5"
-            style={{
-              color: isOnline ? "#3DD68C" : isLight ? "#9E88B8" : "#7A6A90",
-            }}
-          >
-            {isOnline ? "Online now" : "Offline"}
+          <p className="flex items-center gap-1.5 truncate text-xs text-muted">
+            {isOnline ? (
+              <span className="font-medium text-success">Online</span>
+            ) : (
+              <span>Offline</span>
+            )}
+            <span className="hidden text-subtle sm:inline">·</span>
+            <span className="hidden items-center gap-1 sm:inline-flex">
+              <Lock className="h-3 w-3" /> End-to-end encrypted
+            </span>
           </p>
         </div>
-      </div>
 
-      {/* Action buttons */}
-      <div className="flex items-center gap-2">
-        <button
-          style={actionBtnStyle}
-          className="hover:scale-105 transition-transform"
-        >
-          <Phone
-            className="w-3.5 h-3.5"
-            style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
-          />
-        </button>
-        <button
-          style={actionBtnStyle}
-          className="hover:scale-105 transition-transform"
-        >
-          <Video
-            className="w-3.5 h-3.5"
-            style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
-          />
-        </button>
-        <button
-          style={actionBtnStyle}
-          className="hover:scale-105 transition-transform"
-        >
-          <MoreVertical
-            className="w-3.5 h-3.5"
-            style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
-          />
-        </button>
+        <div className="flex items-center gap-0.5 sm:gap-1">
+          <HeaderButton icon={Phone} label="Voice call" className="hidden xs:grid" />
+          <HeaderButton icon={Video} label="Video call" className="hidden xs:grid" />
+          <HeaderButton icon={MoreVertical} label="More options" />
+        </div>
       </div>
-    </div>
+    </header>
   );
 }
 

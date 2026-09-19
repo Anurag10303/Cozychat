@@ -1,108 +1,81 @@
-"use client";
-
+import { motion } from "framer-motion";
+import { SearchX, Users as UsersIcon } from "lucide-react";
 import User from "./User";
-import useGetAllUsers from "../../context/useGetAllUsers";
-import { useTheme } from "../../context/ThemeContext";
+import { EASE } from "../../lib/motion";
 
-function Users() {
-  const [allUsers, loading] = useGetAllUsers();
-  const { theme } = useTheme();
-  const isLight = theme === "light";
+function SkeletonRow({ i }) {
+  return (
+    <div className="flex items-center gap-3 px-3 py-3" style={{ opacity: 1 - i * 0.12 }}>
+      <div className="skeleton h-11 w-11 shrink-0 rounded-full" />
+      <div className="flex-1 space-y-2">
+        <div className="skeleton h-3 w-2/3 rounded-full" />
+        <div className="skeleton h-2.5 w-1/2 rounded-full" />
+      </div>
+    </div>
+  );
+}
 
+function EmptyState({ query }) {
+  const Icon = query ? SearchX : UsersIcon;
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: EASE }}
+      className="flex flex-col items-center px-6 py-14 text-center"
+    >
+      <div className="mb-4 grid h-12 w-12 place-items-center rounded-2xl border border-line bg-surface-2 text-subtle">
+        <Icon className="h-5 w-5" />
+      </div>
+      <p className="text-sm font-medium text-fg">{query ? "No matches" : "No people yet"}</p>
+      <p className="mt-1 max-w-[220px] text-xs leading-relaxed text-muted">
+        {query ? (
+          <>
+            Nobody matches “<span className="text-fg">{query}</span>”. Try a name or email.
+          </>
+        ) : (
+          "When others join CozyChat, they’ll appear here."
+        )}
+      </p>
+    </motion.div>
+  );
+}
+
+function Users({ users, loading, query }) {
   if (loading) {
     return (
-      <div className="p-3 space-y-2">
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className="flex items-center gap-3 p-3 rounded-2xl"
-            style={{ animationDelay: `${i * 0.1}s` }}
-          >
-            <div
-              className="w-11 h-11 rounded-full flex-shrink-0"
-              style={{
-                background: isLight
-                  ? "rgba(127,119,221,0.1)"
-                  : "rgba(175,169,236,0.08)",
-                animation: "shimmer 1.5s infinite",
-                backgroundSize: "200% 100%",
-              }}
-            />
-            <div className="flex-1 space-y-2">
-              <div
-                className="h-3 rounded-full w-3/4"
-                style={{
-                  background: isLight
-                    ? "rgba(127,119,221,0.1)"
-                    : "rgba(175,169,236,0.08)",
-                  animation: "shimmer 1.5s infinite",
-                  backgroundSize: "200% 100%",
-                }}
-              />
-              <div
-                className="h-2.5 rounded-full w-1/2"
-                style={{
-                  background: isLight
-                    ? "rgba(127,119,221,0.07)"
-                    : "rgba(175,169,236,0.05)",
-                  animation: "shimmer 1.5s infinite",
-                  animationDelay: "0.2s",
-                  backgroundSize: "200% 100%",
-                }}
-              />
-            </div>
-          </div>
+      <div className="px-2 pt-1 sm:px-3" aria-busy="true" aria-label="Loading conversations">
+        {Array.from({ length: 7 }, (_, i) => (
+          <SkeletonRow key={i} i={i} />
         ))}
       </div>
     );
   }
 
+  if (users.length === 0) return <EmptyState query={query} />;
+
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto scrollbar-hide p-3">
-        {allUsers.length === 0 ? (
-          <div className="text-center py-12">
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{
-                background: isLight
-                  ? "rgba(127,119,221,0.1)"
-                  : "rgba(175,169,236,0.08)",
-              }}
-            >
-              <svg
-                className="w-6 h-6"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={isLight ? "#7F77DD" : "#AFA9EC"}
-                strokeWidth="2"
-              >
-                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
-              </svg>
-            </div>
-            <p
-              className="text-sm font-medium"
-              style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
-            >
-              No users found
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {allUsers.map((user, index) => (
-              <div
-                key={user._id || index}
-                style={{
-                  animation: `fadeSlideIn 0.3s ease-out ${index * 0.05}s both`,
-                }}
-              >
-                <User user={user} />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+    <nav aria-label="Conversations" className="scroll-thin h-full overflow-y-auto px-2 pt-1 pb-3 sm:px-3">
+      <motion.ul
+        initial="hidden"
+        animate="show"
+        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.035 } } }}
+        className="space-y-0.5"
+      >
+        {users.map((user) => (
+          <motion.li
+            key={user._id}
+            layout="position"
+            variants={{
+              hidden: { opacity: 0, y: 6 },
+              show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: EASE } },
+            }}
+          >
+            <User user={user} />
+          </motion.li>
+        ))}
+      </motion.ul>
+    </nav>
   );
 }
 

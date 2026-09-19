@@ -3,6 +3,7 @@ import AppError from "../utils/AppError.js";
 import User from "../models/user.model.js";
 import bcrypt from "bcrypt";
 import createTokenAndSaveCookie from "../authenticator/jwtAuth.js";
+import { getGoogleClientId, verifyGoogleCredential } from "../utils/googleAuth.js";
 
 // Cloudinary gives us a full URL in req.file.path
 const getAvatar = (req) => req.file?.path || null;
@@ -48,6 +49,9 @@ export const signIn = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ email });
   if (!user) throw new AppError("Invalid email or password", 400);
+  if (!user.password) {
+    throw new AppError("This account uses Google sign-in. Continue with Google instead.", 400);
+  }
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) throw new AppError("Invalid email or password", 400);
@@ -67,6 +71,88 @@ export const signIn = asyncHandler(async (req, res) => {
   });
 });
 
+/**
+ * POST /user/google
+ * Body: { credential: "<Google ID token>" }
+ *
+ * Signs in (or signs up) with a verified Google identity:
+ *  1. Existing Google-linked account → sign in.
+ *  2. Existing email/password account with the same verified email → link it.
+ *  3. Otherwise → create a new passwordless account.
+ *
+ * Also reports whether an E2EE key backup exists and whether the account
+ * has a password, so the client knows how to unlock or create its keys.
+ */
+export const googleAuth = asyncHandler(async (req, res) => {
+  const { credential } = req.body ?? {};
+  if (typeof credential !== "string" || credential.length < 20 || credential.length > 4096) {
+    throw new AppError("A valid Google credential is required", 400);
+  }
+
+  const profile = await verifyGoogleCredential(credential);
+
+  let isNewUser = false;
+  let user = await User.findOne({ googleId: profile.googleId });
+
+  if (!user) {
+    user = await User.findOne({ email: profile.email });
+    if (user) {
+      if (user.googleId && user.googleId !== profile.googleId) {
+        throw new AppError("This email is linked to a different Google account", 409);
+      }
+      user.googleId = profile.googleId;
+      if (!user.avatar && profile.avatar) user.avatar = profile.avatar;
+      await user.save();
+    } else {
+      try {
+        user = await User.create({
+          fullName: profile.fullName,
+          email: profile.email,
+          googleId: profile.googleId,
+          avatar: profile.avatar,
+        });
+        isNewUser = true;
+      } catch (err) {
+        // Two simultaneous first sign-ins can race; the loser picks up the winner's record.
+        if (err?.code !== 11000) throw err;
+        user = await User.findOne({ googleId: profile.googleId });
+        if (!user) throw new AppError("Could not complete Google sign-in, please retry", 409);
+      }
+    }
+  }
+
+  const token = createTokenAndSaveCookie(user._id, res);
+
+  res.status(isNewUser ? 201 : 200).json({
+    success: true,
+    message: isNewUser ? "Account created with Google" : "Signed in with Google",
+    token,
+    isNewUser,
+    hasKeyBackup: Boolean(user.encryptedPrivateKey),
+    hasPassword: Boolean(user.password),
+    user: {
+      _id: user._id,
+      fullName: user.fullName,
+      email: user.email,
+      avatar: user.avatar,
+    },
+  });
+});
+
+/**
+ * GET /user/auth/config
+ * Public auth settings for the frontend, read at runtime so one backend
+ * env var configures every deployment without rebuilding the client.
+ * An OAuth client ID is public by design (it ships in every Google button).
+ */
+export const authConfig = (req, res) => {
+  res.set("Cache-Control", "public, max-age=300");
+  res.status(200).json({
+    success: true,
+    googleClientId: getGoogleClientId() || null,
+  });
+};
+
 export const signOut = asyncHandler(async (req, res) => {
   res.clearCookie("jwt", {
     httpOnly: true,
@@ -83,8 +169,9 @@ export const allUsers = asyncHandler(async (req, res) => {
 
   const loggedInUser = req.user._id;
 
+  // Never expose credentials or other users' wrapped key backups.
   const users = await User.find({ _id: { $ne: loggedInUser } }).select(
-    "-password",
+    "-password -googleId -encryptedPrivateKey",
   );
 
   const Message = (await import("../models/message.model.js")).default;

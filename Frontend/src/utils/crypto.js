@@ -530,3 +530,46 @@ export async function ensureKeyPair() {
   const jwk = await exportPublicKeyJWK(keyPair.publicKey);
   return jwk;
 }
+
+// ── Explicit passphrase flows (Google sign-in) ─────────────────
+// Unlike ensureKeyPairWithBackup, these never silently regenerate keys:
+// a wrong passphrase throws, so the caller can ask again instead of
+// overwriting the user's existing backup.
+
+/**
+ * Restore the key pair from a server backup blob. Throws if the passphrase
+ * is wrong (AES-GCM authentication fails). Only writes to IndexedDB on success.
+ * @returns {Promise<string>} JWK string of the restored public key
+ */
+export async function restoreKeyPairFromBackup(blob, passphrase, userId) {
+  const wrappingKey = await deriveWrappingKey(passphrase, userId);
+  const privateKey = await unwrapPrivateKey(blob, wrappingKey);
+  const publicKey = await derivePublicKeyFromPrivate(privateKey);
+  await storeKeyPair({ privateKey, publicKey });
+  return exportPublicKeyJWK(publicKey);
+}
+
+/**
+ * Generate a fresh key pair and its passphrase-wrapped backup blob.
+ * Nothing is persisted: upload the blob first, then call storeKeyPair,
+ * so local keys and the server backup can never drift apart.
+ */
+export async function createKeyPairWithBackup(passphrase, userId) {
+  const keyPair = await generateKeyPair();
+  const wrappingKey = await deriveWrappingKey(passphrase, userId);
+  const encryptedPrivateKey = await wrapPrivateKey(keyPair.privateKey, wrappingKey);
+  return { keyPair, encryptedPrivateKey };
+}
+
+/**
+ * True when this browser already holds the key pair whose public half
+ * matches `serverPublicKeyJWK` (i.e. the keys belong to this account).
+ */
+export async function localKeysMatch(serverPublicKeyJWK) {
+  if (!serverPublicKeyJWK) return false;
+  const [priv, pub] = await Promise.all([loadPrivateKey(), loadPublicKey()]);
+  if (!priv || !pub) return false;
+  const local = await crypto.subtle.exportKey("jwk", pub);
+  const remote = JSON.parse(serverPublicKeyJWK);
+  return local.x === remote.x && local.y === remote.y;
+}

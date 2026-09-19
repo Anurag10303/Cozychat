@@ -15,6 +15,7 @@ import AppError from "./utils/AppError.js";
 import errorMiddleware from "./middleware/errorMiddleware.js";
 import { generalLimiter } from "./middleware/rateLimiter.js";
 import redisClient from "./utils/redisClient.js";
+import { corsOrigin } from "./utils/allowedOrigins.js";
 
 const Port = process.env.PORT || 4000;
 const URI = process.env.MONGODB_URL;
@@ -28,11 +29,7 @@ app.use(cookieParser());
 // app.use(generalLimiter);
 app.use(
   cors({
-    origin: [
-      "http://localhost:5174",
-      "https://cozychat1.onrender.com",
-      "http://localhost:5173",
-    ],
+    origin: corsOrigin, // from CLIENT_URL, see utils/allowedOrigins.js
     credentials: true,
   }),
 );

@@ -1,61 +1,33 @@
-"use client";
-
-import { Sun, Moon } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { Moon, Sun } from "lucide-react";
 import { useTheme } from "../context/ThemeContext";
 
-function ThemeToggle() {
+function ThemeToggle({ className = "" }) {
   const { theme, toggleTheme } = useTheme();
+  const isDark = theme === "dark";
 
   return (
-    <button
+    <motion.button
+      type="button"
       onClick={toggleTheme}
-      className={`
-        relative p-2 rounded-xl transition-all duration-300 transform hover:scale-110
-        ${
-          theme === "light"
-            ? "bg-gradient-to-r from-amber-400 via-orange-500 to-pink-500 shadow-md shadow-orange-400/30 hover:shadow-orange-400/50"
-            : "bg-gradient-to-r from-[#1f1c2c] via-[#2d2a42] to-[#4b3974] hover:from-[#2d2a42] hover:to-[#5b478c] shadow-[0_0_15px_rgba(91,71,140,0.5)]"
-        }
-      `}
+      whileTap={{ scale: 0.9 }}
+      aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      title={isDark ? "Light mode" : "Dark mode"}
+      className={`relative grid h-9 w-9 place-items-center overflow-hidden rounded-xl border border-line bg-surface text-muted shadow-soft transition-colors hover:bg-surface-2 hover:text-fg ${className}`}
     >
-      <div className="relative w-5 h-5">
-        {/* ☀️ Light mode icon */}
-        <Sun
-          className={`
-            absolute inset-0 w-5 h-5 transition-all duration-500 transform
-            ${
-              theme === "light"
-                ? "text-white rotate-0 scale-100 opacity-100"
-                : "text-purple-300 rotate-90 scale-0 opacity-0"
-            }
-          `}
-        />
-
-        {/* 🌙 Dark mode icon */}
-        <Moon
-          className={`
-            absolute inset-0 w-5 h-5 transition-all duration-500 transform
-            ${
-              theme === "dark"
-                ? "text-indigo-300 rotate-0 scale-100 opacity-100"
-                : "text-slate-400 -rotate-90 scale-0 opacity-0"
-            }
-          `}
-        />
-      </div>
-
-      {/* Subtle glowing ring when active */}
-      <div
-        className={`
-          absolute inset-0 rounded-xl blur-md opacity-0 transition-opacity duration-500
-          ${
-            theme === "dark"
-              ? "bg-indigo-500/30 opacity-70"
-              : "bg-orange-400/30 opacity-70"
-          }
-        `}
-      ></div>
-    </button>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span
+          key={theme}
+          initial={{ y: -14, opacity: 0, rotate: -45 }}
+          animate={{ y: 0, opacity: 1, rotate: 0 }}
+          exit={{ y: 14, opacity: 0, rotate: 45 }}
+          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="grid place-items-center"
+        >
+          {isDark ? <Moon className="h-[17px] w-[17px]" /> : <Sun className="h-[17px] w-[17px]" />}
+        </motion.span>
+      </AnimatePresence>
+    </motion.button>
   );
 }
 

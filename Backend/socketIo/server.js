@@ -7,6 +7,7 @@ import Message from "../models/message.model.js";
 import redisClient from "../utils/redisClient.js";
 import { createAdapter } from "@socket.io/redis-adapter";
 import { createClient } from "redis";
+import { corsOrigin } from "../utils/allowedOrigins.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -43,7 +44,7 @@ export const getOnlineUsers = async () => {
 
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:5173", "https://cozychat1.onrender.com"],
+    origin: corsOrigin, // from CLIENT_URL, see utils/allowedOrigins.js
     credentials: true,
   },
 });

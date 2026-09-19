@@ -1,41 +1,103 @@
-"use client";
-
 import useSendMessage from "../../context/useSendMessage";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useSocketContext } from "../../context/SocketContext";
 import useConversation from "../../zustand/userConveration";
-import { useTheme } from "../../context/ThemeContext";
-import {
-  Paperclip,
-  Send,
-  Smile,
-  X,
-  FileText,
-  Music,
-  Video,
-  Image,
-} from "lucide-react";
+import { FileText, Image, Music, Paperclip, SendHorizontal, Smile, Video, X } from "lucide-react";
+import { EASE, spring } from "../../lib/motion";
+
+const EMOJIS = [
+  "😀", "😂", "🥲", "😊", "😍", "🥰", "😎", "🤔",
+  "😅", "😭", "😴", "🙃", "😇", "🤗", "🙌", "👏",
+  "👍", "👎", "🙏", "💪", "👋", "🤝", "✌️", "👌",
+  "❤️", "🔥", "✨", "🎉", "💯", "✅", "☕", "🌙",
+];
 
 // pick icon based on file type
 const FileIcon = ({ type }) => {
-  if (type?.startsWith("image/")) return <Image className="w-4 h-4" />;
-  if (type?.startsWith("video/")) return <Video className="w-4 h-4" />;
-  if (type?.startsWith("audio/")) return <Music className="w-4 h-4" />;
-  return <FileText className="w-4 h-4" />;
+  if (type?.startsWith("image/")) return <Image className="h-4 w-4" />;
+  if (type?.startsWith("video/")) return <Video className="h-4 w-4" />;
+  if (type?.startsWith("audio/")) return <Music className="h-4 w-4" />;
+  return <FileText className="h-4 w-4" />;
 };
+
+const formatSize = (bytes) =>
+  bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(0)} KB` : `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+
+function EmojiPicker({ open, onPick, onClose }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (!ref.current?.contains(e.target) && !e.target.closest?.("[data-emoji-trigger]")) onClose();
+    };
+    const onKey = (e) => e.key === "Escape" && onClose();
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          ref={ref}
+          initial={{ opacity: 0, y: 8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 6, scale: 0.98 }}
+          transition={{ duration: 0.18, ease: EASE }}
+          className="absolute bottom-full left-0 z-20 mb-2 w-[min(19rem,calc(100vw-1.5rem))] origin-bottom-left rounded-2xl border border-line bg-elevated p-2 shadow-float"
+          role="dialog"
+          aria-label="Emoji picker"
+        >
+          <div className="grid grid-cols-8 gap-0.5">
+            {EMOJIS.map((e) => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => onPick(e)}
+                className="grid aspect-square place-items-center rounded-lg text-xl transition-transform hover:scale-110 hover:bg-surface-2"
+                aria-label={`Insert ${e}`}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
 
 function TypeMsg() {
   const { loading, progress, sendMessages } = useSendMessage();
   const { selectedConversation } = useConversation();
-  const { theme } = useTheme();
-  const isLight = theme === "light";
 
   const [message, setMessage] = useState("");
   const [selectedFile, setSelectedFile] = useState(null); // File object
   const [previewUrl, setPreviewUrl] = useState(null); // for image preview
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const { socket } = useSocketContext();
+
+  // Grow with content up to ~6 lines, then scroll inside.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "0px";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [message]);
+
+  // Focus the composer when a conversation opens (skip on touch to avoid popping the keyboard).
+  useEffect(() => {
+    if (window.matchMedia("(pointer: fine)").matches) textareaRef.current?.focus();
+  }, [selectedConversation?._id]);
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -64,15 +126,14 @@ function TypeMsg() {
     clearFile();
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       handleSubmit(e);
     }
   };
 
-  const handleChange = (e) => {
-    setMessage(e.target.value);
+  const emitTyping = () => {
     if (!socket) return;
     socket.emit("typing", { receiverId: selectedConversation._id });
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -81,183 +142,176 @@ function TypeMsg() {
     }, 1000);
   };
 
-  const canSend =
-    (message.trim() || selectedFile) && !loading && selectedConversation;
+  const handleChange = (e) => {
+    setMessage(e.target.value);
+    emitTyping();
+  };
 
-  const accent = isLight ? "#7F77DD" : "#AFA9EC";
-  const subColor = isLight ? "#9E88B8" : "#7A6A90";
-  const inputBg = isLight ? "rgba(248,242,255,0.9)" : "rgba(30,18,50,0.9)";
-  const inputBorder = isLight
-    ? "1px solid rgba(127,119,221,0.18)"
-    : "1px solid rgba(140,100,200,0.15)";
+  const insertEmoji = (emoji) => {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? message.length;
+    const end = el?.selectionEnd ?? message.length;
+    setMessage((m) => m.slice(0, start) + emoji + m.slice(end));
+    emitTyping();
+    requestAnimationFrame(() => {
+      el?.focus();
+      el?.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
+
+  const canSend = (message.trim() || selectedFile) && !loading && selectedConversation;
 
   return (
-    <div className="px-4 pb-4 pt-2">
-      {/* ── File preview strip ──────────────────────────────── */}
-      {selectedFile && (
-        <div
-          className="flex items-center gap-3 mb-2 px-3 py-2 rounded-xl"
-          style={{ background: inputBg, border: inputBorder }}
-        >
-          {previewUrl ? (
-            <img
-              src={previewUrl}
-              alt="preview"
-              className="w-10 h-10 object-cover rounded-lg flex-shrink-0"
-            />
-          ) : (
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{
-                background: isLight
-                  ? "rgba(127,119,221,0.1)"
-                  : "rgba(175,169,236,0.08)",
-                color: accent,
-              }}
+    <div className="safe-bottom shrink-0 border-t border-line bg-bar px-2 pt-2.5 sm:px-4 lg:px-6">
+      <div className="mx-auto w-full max-w-3xl">
+        {/* ── File preview strip ──────────────────────────────── */}
+        <AnimatePresence initial={false}>
+          {selectedFile && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.22, ease: EASE }}
+              className="overflow-hidden"
             >
-              <FileIcon type={selectedFile.type} />
-            </div>
+              <div className="mb-2 flex items-center gap-3 rounded-xl border border-line bg-surface px-2.5 py-2 shadow-soft">
+                {previewUrl ? (
+                  <img src={previewUrl} alt="Preview" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
+                ) : (
+                  <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent-text">
+                    <FileIcon type={selectedFile.type} />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-medium text-fg">{selectedFile.name}</p>
+                  <p className="text-xs text-muted">{formatSize(selectedFile.size)}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearFile}
+                  disabled={loading}
+                  aria-label="Remove attachment"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </motion.div>
           )}
-          <div className="flex-1 min-w-0">
-            <p
-              className="text-xs font-medium truncate"
-              style={{ color: isLight ? "#1A1228" : "#F0EAF8" }}
+        </AnimatePresence>
+
+        {/* ── Upload progress bar ─────────────────────────────── */}
+        <AnimatePresence>
+          {loading && progress > 0 && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="mb-2 px-1"
             >
-              {selectedFile.name}
-            </p>
-            <p className="text-xs" style={{ color: subColor }}>
-              {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={clearFile}
-            className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"
-          >
-            <X className="w-4 h-4" style={{ color: subColor }} />
-          </button>
-        </div>
-      )}
+              <div className="mb-1 flex items-center justify-between text-xs">
+                <span className="text-muted">Uploading…</span>
+                <span className="font-mono font-medium text-accent-text tabular-nums">{progress}%</span>
+              </div>
+              <div className="h-1 overflow-hidden rounded-full bg-surface-3">
+                <motion.div
+                  className="brand-gradient h-full rounded-full"
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.2 }}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-      {/* ── Upload progress bar ─────────────────────────────── */}
-      {loading && progress > 0 && (
-        <div className="mb-2 px-1">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs" style={{ color: subColor }}>
-              Uploading...
-            </span>
-            <span className="text-xs font-medium" style={{ color: accent }}>
-              {progress}%
-            </span>
-          </div>
-          <div
-            className="h-1 rounded-full overflow-hidden"
-            style={{
-              background: isLight
-                ? "rgba(127,119,221,0.12)"
-                : "rgba(175,169,236,0.08)",
-            }}
-          >
-            <div
-              className="h-full rounded-full transition-all duration-200"
-              style={{
-                width: `${progress}%`,
-                background: "linear-gradient(90deg, #7F77DD, #D4537E)",
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ── Input row ───────────────────────────────────────── */}
-      <form onSubmit={handleSubmit} className="flex items-center gap-3">
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
-          onChange={handleFileSelect}
-          disabled={!selectedConversation}
-        />
-
-        {/* Attach button */}
-        <button
-          type="button"
-          disabled={!selectedConversation || loading}
-          onClick={() => fileInputRef.current?.click()}
-          className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 hover:scale-105 disabled:opacity-40"
-          style={{
-            background: selectedFile
-              ? isLight
-                ? "rgba(127,119,221,0.18)"
-                : "rgba(175,169,236,0.14)"
-              : isLight
-                ? "rgba(127,119,221,0.08)"
-                : "rgba(175,169,236,0.06)",
-            border: selectedFile ? `1px solid ${accent}` : inputBorder,
-          }}
-        >
-          <Paperclip className="w-4 h-4" style={{ color: accent }} />
-        </button>
-
-        {/* Text input */}
-        <div
-          className="flex-1 flex items-center gap-3 rounded-2xl px-4 py-2.5 transition-all duration-200"
-          style={{
-            background: inputBg,
-            border: inputBorder,
-            backdropFilter: "blur(10px)",
-          }}
-        >
-          <button
-            type="button"
-            className="flex-shrink-0 opacity-60 hover:opacity-100 transition-opacity"
-          >
-            <Smile className="w-4 h-4" style={{ color: subColor }} />
-          </button>
+        {/* ── Input row ───────────────────────────────────────── */}
+        <form onSubmit={handleSubmit} className="relative flex items-end gap-1.5 sm:gap-2">
+          {/* Hidden file input */}
           <input
-            type="text"
-            placeholder={
-              selectedFile
-                ? "Add a caption..."
-                : !selectedConversation
-                  ? "Select a conversation..."
-                  : "Write a message..."
-            }
-            value={message}
-            onChange={handleChange}
-            onKeyPress={handleKeyPress}
-            disabled={loading || !selectedConversation}
-            className="flex-1 bg-transparent text-sm outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ color: isLight ? "#1A1228" : "#F0EAF8" }}
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+            onChange={handleFileSelect}
+            disabled={!selectedConversation}
           />
-        </div>
 
-        {/* Send button */}
-        <button
-          type="submit"
-          disabled={!canSend}
-          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{
-            background: canSend
-              ? "linear-gradient(135deg, #7F77DD, #D4537E)"
-              : isLight
-                ? "rgba(127,119,221,0.15)"
-                : "rgba(175,169,236,0.08)",
-            boxShadow: canSend ? "0 4px 14px rgba(127,119,221,0.4)" : "none",
-          }}
-        >
-          {loading && progress === 0 ? (
-            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-          ) : (
-            <Send
-              className="w-4 h-4"
-              style={{ color: canSend ? "#fff" : subColor, marginLeft: "2px" }}
+          <EmojiPicker open={emojiOpen} onPick={insertEmoji} onClose={() => setEmojiOpen(false)} />
+
+          {/* Attach button */}
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.9 }}
+            disabled={!selectedConversation || loading}
+            onClick={() => fileInputRef.current?.click()}
+            aria-label="Attach a file"
+            title="Attach"
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl transition-colors disabled:opacity-40 ${
+              selectedFile ? "bg-accent-soft text-accent-text" : "text-muted hover:bg-surface-2 hover:text-fg"
+            }`}
+          >
+            <Paperclip className="h-5 w-5" />
+          </motion.button>
+
+          {/* Text input */}
+          <div className="flex min-w-0 flex-1 items-end gap-1 rounded-2xl border border-line bg-surface pr-1 pl-1.5 shadow-soft transition-[border-color,box-shadow] duration-200 focus-within:border-accent focus-within:ring-4 focus-within:ring-ring">
+            <button
+              type="button"
+              data-emoji-trigger
+              onClick={() => setEmojiOpen((o) => !o)}
+              aria-label="Insert emoji"
+              aria-expanded={emojiOpen}
+              className={`mb-1 grid h-9 w-9 shrink-0 place-items-center rounded-xl transition-colors ${
+                emojiOpen ? "bg-accent-soft text-accent-text" : "text-subtle hover:text-fg"
+              }`}
+            >
+              <Smile className="h-5 w-5" />
+            </button>
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              placeholder={
+                selectedFile
+                  ? "Add a caption…"
+                  : !selectedConversation
+                    ? "Select a conversation…"
+                    : "Write a message…"
+              }
+              value={message}
+              onChange={handleChange}
+              onKeyDown={handleKeyDown}
+              disabled={loading || !selectedConversation}
+              enterKeyHint="send"
+              aria-label="Message"
+              className="scroll-thin max-h-40 min-h-[2.75rem] flex-1 resize-none bg-transparent py-[0.7rem] text-[16px] leading-[1.4] text-fg outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-[0.9375rem]"
             />
-          )}
-        </button>
-      </form>
+          </div>
+
+          {/* Send button */}
+          <motion.button
+            type="submit"
+            disabled={!canSend}
+            whileTap={canSend ? { scale: 0.9 } : undefined}
+            animate={{ scale: canSend ? 1 : 0.94 }}
+            transition={spring}
+            aria-label="Send message"
+            className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl transition-colors duration-200 ${
+              canSend
+                ? "bubble-gradient text-accent-fg shadow-accent hover:brightness-110"
+                : "bg-surface-2 text-subtle"
+            }`}
+          >
+            {loading && progress === 0 ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+            ) : (
+              <SendHorizontal className="h-[18px] w-[18px]" />
+            )}
+          </motion.button>
+        </form>
+        <p className="mt-1.5 hidden text-center text-[11px] text-subtle lg:block">
+          <kbd className="font-mono">Enter</kbd> to send · <kbd className="font-mono">Shift + Enter</kbd> for a new line
+        </p>
+      </div>
     </div>
   );
 }

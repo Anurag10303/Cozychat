@@ -1,13 +1,15 @@
-"use client";
-
 import Message from "./Message";
 import useGetMessage from "../../context/useGetMessage";
 import useGetSocketMessage from "../../context/useGetSocketMessage";
 import useConversation from "../../zustand/userConveration";
-import { useTheme } from "../../context/ThemeContext";
-import { useRef, useEffect, useState } from "react";
-import { MessageCircle } from "lucide-react";
+import { useRef, useEffect, useState, Fragment } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowDown, Lock } from "lucide-react";
 import { useSocketContext } from "../../context/SocketContext";
+import Avatar from "../../components/ui/Avatar";
+import { EASE } from "../../lib/motion";
+
+const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
 const getDateLabel = (dateStr) => {
   if (!dateStr) return "Today";
@@ -19,11 +21,68 @@ const getDateLabel = (dateStr) => {
   if (date.toDateString() === today.toDateString()) return "Today";
   if (date.toDateString() === yesterday.toDateString()) return "Yesterday";
   return date.toLocaleDateString([], {
+    weekday: date.getFullYear() === today.getFullYear() ? "short" : undefined,
     month: "short",
     day: "numeric",
-    year: "numeric",
+    year: date.getFullYear() === today.getFullYear() ? undefined : "numeric",
   });
 };
+
+const dayKey = (d) => (d ? new Date(d).toDateString() : new Date().toDateString());
+
+const sameGroup = (a, b) =>
+  a &&
+  b &&
+  a.senderId?.toString() === b.senderId?.toString() &&
+  dayKey(a.createdAt) === dayKey(b.createdAt) &&
+  Math.abs(new Date(b.createdAt) - new Date(a.createdAt)) < GROUP_WINDOW_MS;
+
+function DateDivider({ label }) {
+  return (
+    <div className="sticky top-2 z-[5] my-4 flex justify-center">
+      <span className="rounded-full border border-line bg-elevated/90 px-3 py-1 text-[11px] font-medium tracking-wide text-muted shadow-soft backdrop-blur-md">
+        {label}
+      </span>
+    </div>
+  );
+}
+
+function EncryptionNotice() {
+  return (
+    <div className="mx-auto mb-2 flex max-w-sm items-start gap-2 rounded-xl border border-line bg-elevated/80 px-3.5 py-2.5 text-[11.5px] leading-relaxed text-muted backdrop-blur-md">
+      <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-text" />
+      <span>
+        Messages are end-to-end encrypted. No one outside this chat, not even CozyChat, can read
+        them.
+      </span>
+    </div>
+  );
+}
+
+function TypingBubble() {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
+      exit={{ opacity: 0, y: 4, scale: 0.96 }}
+      transition={{ duration: 0.2, ease: EASE }}
+      className="mt-1 flex origin-bottom-left justify-start"
+      aria-live="polite"
+      aria-label="Typing"
+    >
+      <div className="flex h-9 items-center gap-1 rounded-2xl rounded-bl-md border border-line bg-bubble-in px-4 shadow-soft">
+        {[0, 1, 2].map((i) => (
+          <motion.span
+            key={i}
+            className="block h-1.5 w-1.5 rounded-full bg-subtle"
+            animate={{ y: [0, -4, 0], opacity: [0.5, 1, 0.5] }}
+            transition={{ duration: 1, repeat: Infinity, delay: i * 0.15, ease: "easeInOut" }}
+          />
+        ))}
+      </div>
+    </motion.div>
+  );
+}
 
 function Messages() {
   const {
@@ -35,14 +94,13 @@ function Messages() {
   } = useGetMessage();
   const { selectedConversation } = useConversation();
   const { socket } = useSocketContext();
-  const { theme } = useTheme();
-  const isLight = theme === "light";
   useGetSocketMessage();
 
   const lastMsgRef = useRef();
   const topRef = useRef();
   const containerRef = useRef();
   const [typingUser, setTypingUser] = useState(null);
+  const [showJump, setShowJump] = useState(false);
 
   // ✅ Track whether this is the initial load for this conversation
   const isInitialLoad = useRef(true);
@@ -142,6 +200,15 @@ function Messages() {
     };
   }, [socket, selectedConversation]);
 
+  // Keep the typing bubble in view, but only if the reader is already near the bottom
+  useEffect(() => {
+    const c = containerRef.current;
+    if (!typingUser || !c) return;
+    if (c.scrollHeight - c.scrollTop - c.clientHeight < 160) {
+      c.scrollTo({ top: c.scrollHeight, behavior: "smooth" });
+    }
+  }, [typingUser]);
+
   // Emit markSeen when user opens a conversation with unread messages
   useEffect(() => {
     if (!socket || !selectedConversation || messages.length === 0) return;
@@ -161,26 +228,22 @@ function Messages() {
     });
   }, [messages, selectedConversation, socket]);
 
+  const onScroll = (e) => {
+    const c = e.currentTarget;
+    setShowJump(c.scrollHeight - c.scrollTop - c.clientHeight > 480);
+  };
+
+  const jumpToLatest = () => {
+    const c = containerRef.current;
+    c?.scrollTo({ top: c.scrollHeight, behavior: "smooth" });
+  };
+
   if (loading) {
     return (
-      <div className="h-full flex flex-col justify-end p-5 space-y-3">
-        {[...Array(5)].map((_, i) => (
-          <div
-            key={i}
-            className={`flex ${i % 2 === 0 ? "justify-start" : "justify-end"}`}
-          >
-            <div
-              className="rounded-2xl px-4 py-3"
-              style={{
-                width: `${140 + ((i * 30) % 80)}px`,
-                height: "36px",
-                background: isLight
-                  ? "rgba(127,119,221,0.08)"
-                  : "rgba(175,169,236,0.06)",
-                animation: "shimmer 1.5s infinite",
-                backgroundSize: "200% 100%",
-              }}
-            />
+      <div className="mx-auto flex h-full max-w-3xl flex-col justify-end gap-3 px-4 py-6 sm:px-6" aria-busy="true">
+        {[180, 240, 140, 280, 200, 160].map((w, i) => (
+          <div key={i} className={`flex ${i % 3 === 1 ? "justify-end" : "justify-start"}`}>
+            <div className="skeleton h-10 max-w-[70%] rounded-2xl" style={{ width: w }} />
           </div>
         ))}
       </div>
@@ -188,130 +251,93 @@ function Messages() {
   }
 
   return (
-    <div ref={containerRef} className="h-full p-5 overflow-y-auto msg-scroll">
-      {messages.length === 0 ? (
-        <div className="h-full flex items-center justify-center">
-          <div
-            className="text-center p-8 rounded-3xl max-w-xs"
-            style={{
-              background: isLight
-                ? "rgba(255,252,255,0.6)"
-                : "rgba(22,12,40,0.6)",
-              backdropFilter: "blur(16px)",
-              border: isLight
-                ? "1px solid rgba(127,119,221,0.12)"
-                : "1px solid rgba(140,100,200,0.1)",
-            }}
-          >
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(127,119,221,0.2), rgba(212,83,126,0.2))",
-              }}
+    <div className="relative h-full">
+      <div
+        ref={containerRef}
+        onScroll={onScroll}
+        className="scroll-thin h-full overflow-x-hidden overflow-y-auto overscroll-contain"
+      >
+        {messages.length === 0 ? (
+          <div className="flex h-full items-center justify-center p-6">
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, ease: EASE }}
+              className="flex max-w-xs flex-col items-center rounded-3xl border border-line bg-elevated/90 px-8 py-9 text-center shadow-card backdrop-blur-md"
             >
-              <MessageCircle
-                className="w-6 h-6"
-                style={{ color: isLight ? "#7F77DD" : "#AFA9EC" }}
+              <Avatar
+                name={selectedConversation?.fullName}
+                src={selectedConversation?.avatar}
+                size={64}
               />
-            </div>
-            <h3
-              className="text-base font-bold mb-2"
-              style={{
-                color: isLight ? "#1A1228" : "#F0EAF8",
-                fontFamily: "'Plus Jakarta Sans', sans-serif",
-              }}
-            >
-              Say hello to {selectedConversation?.fullName}
-            </h3>
-            <p
-              className="text-xs leading-relaxed"
-              style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
-            >
-              Send a message to start the conversation
-            </p>
+              <h3 className="mt-4 text-base font-semibold tracking-[-0.01em] text-fg">
+                Say hello to {selectedConversation?.fullName?.split(" ")[0]}
+              </h3>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-muted">
+                This is the beginning of your conversation. Messages are end-to-end encrypted.
+              </p>
+            </motion.div>
           </div>
-        </div>
-      ) : (
-        <div className="space-y-1">
-          {/* Top sentinel — IntersectionObserver watches this for pagination */}
-          <div ref={topRef} className="h-1" />
+        ) : (
+          <div className="mx-auto w-full max-w-3xl px-3 pt-3 pb-4 sm:px-6 lg:px-8">
+            {/* Top sentinel — IntersectionObserver watches this for pagination */}
+            <div ref={topRef} className="h-1" />
 
-          {/* Spinner while loading older messages */}
-          {isFetchingMore && (
-            <div className="flex justify-center py-3">
-              <div
-                className="w-4 h-4 border-2 rounded-full animate-spin"
-                style={{
-                  borderColor: isLight
-                    ? "rgba(127,119,221,0.3)"
-                    : "rgba(175,169,236,0.3)",
-                  borderTopColor: isLight ? "#7F77DD" : "#AFA9EC",
-                }}
-              />
-            </div>
-          )}
-
-          {/* Dynamic date chip */}
-          <div className="flex justify-center mb-4">
-            <span
-              className="text-xs px-3 py-1 rounded-full"
-              style={{
-                background: isLight
-                  ? "rgba(255,252,255,0.7)"
-                  : "rgba(22,12,40,0.7)",
-                backdropFilter: "blur(8px)",
-                border: isLight
-                  ? "1px solid rgba(127,119,221,0.12)"
-                  : "1px solid rgba(140,100,200,0.1)",
-                color: isLight ? "#9E88B8" : "#7A6A90",
-              }}
-            >
-              {getDateLabel(messages[0]?.createdAt)}
-            </span>
-          </div>
-
-          {messages.map((message, index) => (
-            <div
-              key={message._id ?? message.clientMessageId ?? index}
-              ref={index === messages.length - 1 ? lastMsgRef : null}
-            >
-              <Message message={message} />
-            </div>
-          ))}
-
-          {/* Typing indicator */}
-          {typingUser && (
-            <div className="flex justify-start mt-1 pl-1" ref={lastMsgRef}>
-              <div
-                className="px-4 py-2.5"
-                style={{
-                  background: isLight
-                    ? "rgba(255,255,255,0.88)"
-                    : "rgba(30,20,48,0.9)",
-                  border: isLight
-                    ? "1px solid rgba(127,80,160,0.1)"
-                    : "1px solid rgba(140,100,200,0.14)",
-                  borderRadius: "18px 18px 18px 4px",
-                  backdropFilter: "blur(12px)",
-                }}
-              >
-                <div className="flex gap-1 items-center h-4">
-                  {[0, 1, 2].map((i) => (
-                    <span
-                      key={i}
-                      className="typing-dot w-1.5 h-1.5 rounded-full block"
-                      style={{
-                        background: isLight ? "#9E88B8" : "#7A6A90",
-                      }}
-                    />
-                  ))}
-                </div>
+            {/* Spinner while loading older messages */}
+            {isFetchingMore && (
+              <div className="flex justify-center py-3">
+                <div className="h-4 w-4 animate-spin rounded-full border-2 border-line-strong border-t-accent" />
               </div>
-            </div>
-          )}
-        </div>
-      )}
+            )}
+
+            {!hasMore && !isFetchingMore && <EncryptionNotice />}
+
+            {messages.map((message, index) => {
+              const prev = messages[index - 1];
+              const next = messages[index + 1];
+              const newDay = !prev || dayKey(prev.createdAt) !== dayKey(message.createdAt);
+              return (
+                <Fragment key={message._id ?? message.clientMessageId ?? index}>
+                  {newDay && <DateDivider label={getDateLabel(message.createdAt)} />}
+                  <div ref={index === messages.length - 1 ? lastMsgRef : null}>
+                    <Message
+                      message={message}
+                      groupStart={newDay || !sameGroup(prev, message)}
+                      groupEnd={!sameGroup(message, next)}
+                    />
+                  </div>
+                </Fragment>
+              );
+            })}
+
+            {/* Typing indicator */}
+            <AnimatePresence>
+              {typingUser && (
+                <div key="typing" ref={lastMsgRef}>
+                  <TypingBubble />
+                </div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+
+      <AnimatePresence>
+        {showJump && (
+          <motion.button
+            type="button"
+            onClick={jumpToLatest}
+            initial={{ opacity: 0, y: 10, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.9 }}
+            transition={{ duration: 0.2, ease: EASE }}
+            aria-label="Jump to latest message"
+            className="absolute right-4 bottom-4 grid h-10 w-10 place-items-center rounded-full border border-line bg-elevated text-muted shadow-float hover:text-fg sm:right-6"
+          >
+            <ArrowDown className="h-4 w-4" />
+          </motion.button>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

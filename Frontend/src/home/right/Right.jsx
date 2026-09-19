@@ -1,130 +1,108 @@
-"use client";
-
+import { AnimatePresence, motion } from "framer-motion";
+import { Lock, MessagesSquare, Zap } from "lucide-react";
 import Chatuser from "./Chatuser";
 import Messages from "./Messages";
 import TypeMsg from "./TypeMsg";
 import useConversation from "../../zustand/userConveration";
-import { useTheme } from "../../context/ThemeContext";
-import { MessageCircle } from "lucide-react";
+import { useAuth } from "../../context/AuthProvider";
+import { LogoMark } from "../../components/ui/Logo";
+import { EASE, fadeUp, stagger } from "../../lib/motion";
+
+function Welcome() {
+  const [authUser] = useAuth();
+  const firstName = authUser?.user?.fullName?.split(" ")[0];
+
+  const points = [
+    { icon: Lock, label: "End-to-end encrypted" },
+    { icon: Zap, label: "Real-time delivery" },
+    { icon: MessagesSquare, label: "Files, voice & media" },
+  ];
+
+  return (
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden p-8">
+      <div className="bg-dots pointer-events-none absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black_20%,transparent_70%)]" />
+
+      <motion.div
+        variants={stagger(0.08)}
+        initial="hidden"
+        animate="show"
+        className="relative flex max-w-md flex-col items-center text-center"
+      >
+        <motion.div variants={fadeUp} className="relative mb-8">
+          {/* Slow concentric rings: a quiet sign of life, not a spectacle */}
+          {[0, 1, 2].map((i) => (
+            <motion.span
+              key={i}
+              className="absolute inset-0 rounded-[28px] border border-accent/20"
+              initial={{ scale: 1, opacity: 0.6 }}
+              animate={{ scale: 1.9, opacity: 0 }}
+              transition={{ duration: 4, repeat: Infinity, delay: i * 1.33, ease: "easeOut" }}
+            />
+          ))}
+          <LogoMark size={76} className="relative drop-shadow-[0_12px_32px_rgba(108,108,240,0.35)]" />
+        </motion.div>
+
+        <motion.h1
+          variants={fadeUp}
+          className="text-balance text-[1.75rem] font-semibold tracking-[-0.03em] text-fg lg:text-[2rem]"
+        >
+          {firstName ? `Welcome back, ${firstName}` : "Welcome to CozyChat"}
+        </motion.h1>
+        <motion.p variants={fadeUp} className="mt-3 max-w-sm text-[0.9375rem] leading-relaxed text-muted">
+          Pick a conversation from the sidebar to continue where you left off.
+        </motion.p>
+
+        <motion.ul variants={fadeUp} className="mt-8 flex flex-wrap justify-center gap-2">
+          {points.map(({ icon: Icon, label }) => (
+            <li
+              key={label}
+              className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1.5 text-xs font-medium text-muted shadow-soft"
+            >
+              <Icon className="h-3.5 w-3.5 text-accent-text" />
+              {label}
+            </li>
+          ))}
+        </motion.ul>
+      </motion.div>
+    </div>
+  );
+}
 
 function Right() {
   const { selectedConversation } = useConversation();
-  const { theme } = useTheme();
-  const isLight = theme === "light";
-
-  if (!selectedConversation) {
-    return (
-      <div
-        className="flex-1 flex items-center justify-center relative overflow-hidden"
-        style={{
-          background: isLight
-            ? "radial-gradient(ellipse at 30% 20%, #EDE0FF 0%, #FAF5FF 40%, #FFF0F8 100%)"
-            : "radial-gradient(ellipse at 30% 20%, #1E0A35 0%, #0E0A18 50%, #120816 100%)",
-        }}
-      >
-        {/* Background blobs */}
-        <div
-          className={`absolute top-[-80px] right-[-80px] w-72 h-72 rounded-full blur-[100px] opacity-20 ${isLight ? "bg-purple-300" : "bg-purple-900"}`}
-          style={{ animation: "blob-float 8s ease-in-out infinite" }}
-        />
-        <div
-          className={`absolute bottom-[-80px] left-[-80px] w-64 h-64 rounded-full blur-[100px] opacity-15 ${isLight ? "bg-pink-300" : "bg-pink-900"}`}
-          style={{ animation: "blob-float 10s ease-in-out infinite reverse" }}
-        />
-
-        <div
-          className="relative z-10 text-center p-10 rounded-3xl"
-          style={{
-            background: isLight
-              ? "rgba(255,252,255,0.7)"
-              : "rgba(22,12,40,0.7)",
-            backdropFilter: "blur(20px)",
-            border: isLight
-              ? "1px solid rgba(127,119,221,0.15)"
-              : "1px solid rgba(140,100,200,0.12)",
-            boxShadow: "0 8px 40px rgba(127,119,221,0.12)",
-          }}
-        >
-          <div
-            className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6"
-            style={{
-              background: "linear-gradient(135deg, #7F77DD, #D4537E)",
-              boxShadow: "0 8px 28px rgba(127,119,221,0.4)",
-            }}
-          >
-            <MessageCircle className="w-9 h-9 text-white" />
-          </div>
-
-          <h3
-            className="text-2xl font-bold mb-3"
-            style={{
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              background: "linear-gradient(135deg, #7F77DD, #D4537E)",
-              WebkitBackgroundClip: "text",
-              WebkitTextFillColor: "transparent",
-              backgroundClip: "text",
-            }}
-          >
-            Welcome to CozyChat
-          </h3>
-          <p
-            className="text-sm leading-relaxed max-w-xs mx-auto"
-            style={{ color: isLight ? "#9E88B8" : "#7A6A90" }}
-          >
-            Select a conversation from the sidebar to start chatting.
-          </p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div
-      className="flex-1 flex flex-col h-screen"
-      style={{
-        background: isLight
-          ? "radial-gradient(ellipse at 30% 0%, #EDE0FF 0%, #FAF5FF 35%, #FFF0F8 80%, #FAF5FF 100%)"
-          : "radial-gradient(ellipse at 30% 0%, #1E0A35 0%, #0E0A18 40%, #100816 100%)",
-      }}
-    >
-      {/* Header */}
-      <div
-        className="flex-shrink-0 sticky top-0 z-10"
-        style={{
-          background: isLight
-            ? "rgba(255,252,255,0.82)"
-            : "rgba(18,10,32,0.88)",
-          backdropFilter: "blur(20px)",
-          WebkitBackdropFilter: "blur(20px)",
-          borderBottom: isLight
-            ? "1px solid rgba(127,119,221,0.12)"
-            : "1px solid rgba(140,100,200,0.1)",
-        }}
-      >
-        <Chatuser />
-      </div>
-
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto msg-scroll">
-        <Messages />
-      </div>
-
-      {/* Input */}
-      <div
-        className="flex-shrink-0"
-        style={{
-          borderTop: isLight
-            ? "1px solid rgba(127,119,221,0.12)"
-            : "1px solid rgba(140,100,200,0.1)",
-          background: isLight
-            ? "rgba(255,252,255,0.82)"
-            : "rgba(18,10,32,0.88)",
-          backdropFilter: "blur(20px)",
-        }}
-      >
-        <TypeMsg />
-      </div>
-    </div>
+    <main className="relative flex h-full w-full min-w-0 flex-col">
+      <AnimatePresence mode="wait" initial={false}>
+        {!selectedConversation ? (
+          <motion.div
+            key="welcome"
+            className="h-full"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <Welcome />
+          </motion.div>
+        ) : (
+          <motion.div
+            key={selectedConversation._id}
+            className="flex h-full min-h-0 flex-col"
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28, ease: EASE }}
+          >
+            <Chatuser />
+            <div className="bg-dots relative min-h-0 flex-1">
+              <Messages />
+            </div>
+            <TypeMsg />
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </main>
   );
 }
 
