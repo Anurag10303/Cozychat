@@ -85,21 +85,23 @@ subClient.on("error", (err) => console.log("Redis sub error:", err.message));
 
 // ─── Socket Connection ───────────────────────────────────────
 
-io.on("connection", async (socket) => {
-
-  let userId;
-
-  // ── Auth ──────────────────────────────────────────────────
+// ── Auth (handshake middleware) ────────────────────────────
+// Rejecting here, rather than connecting then disconnecting, sends the client
+// a `connect_error` with this message so it can sign the user out cleanly.
+io.use((socket, next) => {
   try {
-    const token = socket.handshake.auth.token;
+    const token = socket.handshake.auth?.token;
     if (!token) throw new Error("No token provided");
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    userId = decoded.userId;
+    socket.data.userId = jwt.verify(token, process.env.JWT_SECRET).userId;
+    next();
   } catch (error) {
     console.log("Socket auth failed:", error.message);
-    socket.disconnect();
-    return;
+    next(new Error("Unauthorized"));
   }
+});
+
+io.on("connection", async (socket) => {
+  const userId = socket.data.userId;
 
   // ── Clean stale sockets ───────────────────────────────────
   try {

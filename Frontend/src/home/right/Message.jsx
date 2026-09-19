@@ -8,6 +8,9 @@ import { AnimatePresence, motion } from "framer-motion";
 import { isEncrypted } from "../../utils/crypto";
 import { EASE } from "../../lib/motion";
 
+// Placeholders E2EEContext.decryptText returns when a message can't be read.
+const UNREADABLE = new Set(["[Decryption failed]", "[Encrypted — key unavailable]"]);
+
 // ── Lightbox ──────────────────────────────────────────────────
 function Lightbox({ url, open, onClose }) {
   useEffect(() => {
@@ -433,7 +436,17 @@ function Message({ message, groupStart = true, groupEnd = true }) {
                 </span>
               ) : (
                 <p className="text-[0.9375rem] leading-[1.45] break-words whitespace-pre-wrap">
-                  {displayText}
+                  {UNREADABLE.has(displayText) ? (
+                    <span
+                      className="inline-flex items-center gap-1.5 italic opacity-70"
+                      title="This message was encrypted with keys that have since changed, so it can't be decrypted."
+                    >
+                      <Lock className="h-3.5 w-3.5 shrink-0" />
+                      Message can't be decrypted
+                    </span>
+                  ) : (
+                    displayText
+                  )}
                   {/* Invisible spacer reserves room so the floating meta never overlaps text */}
                   <span
                     className={`invisible ml-2 inline-block ${itsMe ? "w-[5.25rem]" : "w-[4.25rem]"}`}

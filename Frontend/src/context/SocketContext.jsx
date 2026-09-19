@@ -1,5 +1,6 @@
 import { createContext, useEffect, useState, useContext } from "react";
 import { useAuth } from "./AuthProvider";
+import { expireSession } from "../lib/session";
 import io from "socket.io-client";
 import BASE_URL from "../config";
 
@@ -45,12 +46,21 @@ export const SocketProvider = ({ children }) => {
 
     newSocket.on("connect", () => {});
 
+    // Server rejected the token (expired or invalid) → sign in again.
+    newSocket.on("connect_error", (err) => {
+      if (err?.message === "Unauthorized") {
+        newSocket.disconnect();
+        expireSession();
+      }
+    });
+
     newSocket.on("disconnect", () => {});
 
     // ✅ Cleanup — this runs on unmount AND before remount in Strict Mode
     return () => {
       newSocket.off("getOnlineUsers");
       newSocket.off("connect");
+      newSocket.off("connect_error");
       newSocket.off("disconnect");
       newSocket.disconnect(); // ✅ ensures Redis cleans up on remount too
     };

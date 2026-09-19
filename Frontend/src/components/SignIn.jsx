@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import { ArrowRight, Lock, Mail } from "lucide-react";
@@ -15,6 +15,15 @@ export default function SignIn() {
   const { bootstrapE2EE } = useE2EE();
   const [formData, setFormData] = useState({ email: "", password: "" });
   const [isLoading, setIsLoading] = useState(false);
+
+  // Arrived here because the previous session expired.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("expired")) {
+      toast("Your session expired. Please sign in again.", { id: "session-expired" });
+      window.history.replaceState(null, "", "/login");
+    }
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

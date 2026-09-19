@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import toast from "react-hot-toast";
 import useConversation from "../zustand/userConveration";
 import { useAuth } from "./AuthProvider";
+import { getAuthToken } from "../lib/session";
 import { useE2EE } from "./E2EEContext";
 import BASE_URL from "../config";
 
@@ -10,18 +11,19 @@ const useSendMessage = () => {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [authUser] = useAuth();
-  const { messages, setMessages, selectedConversation } = useConversation();
+  const { setMessages, selectedConversation } = useConversation();
   const { encryptText } = useE2EE();
 
   const sendMessages = async (message = "", file = null) => {
     if (!selectedConversation?._id) return;
     if (!message.trim() && !file) return;
+    const targetId = selectedConversation._id;
 
     setLoading(true);
     setProgress(0);
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getAuthToken();
       const clientMessageId = uuidv4();
       const url = `${BASE_URL}/user/messages/send/${selectedConversation._id}`;
 
@@ -85,7 +87,11 @@ const useSendMessage = () => {
         _decryptedMessage: message.trim(),
         senderId: data.data.senderId ?? authUser?.user?._id,
       };
-      setMessages([...messages, savedMessage]);
+      // Append to the latest state (not a stale snapshot), and only if the
+      // user is still viewing the chat this message was sent to.
+      if (useConversation.getState().selectedConversation?._id === targetId) {
+        setMessages((prev) => [...prev, savedMessage]);
+      }
     } catch (error) {
       console.error("Error sending message:", error);
       toast.error(error.message || "Could not send message");

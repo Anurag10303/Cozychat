@@ -12,16 +12,15 @@ const useGetSocketMessage = () => {
     if (!socket) return;
 
     const handleNewMessage = (newMessage) => {
-      try {
-        new Audio(sound).play();
-      } catch (err) {}
-      // ✅ Always append — never drop incoming messages
-      appendMessage(newMessage);
+      new Audio(sound).play().catch(() => {}); // autoplay may be blocked; that's fine
 
-      // 🔥 CRITICAL FIX: only append if message belongs to current chat
+      // Only show it if it belongs to the open conversation. Messages from other
+      // chats are counted as unread by useGetAllUsers and load when opened.
+      const openId = selectedConversation?._id?.toString();
       if (
-        newMessage.senderId === selectedConversation?._id ||
-        newMessage.receiverId === selectedConversation?._id
+        openId &&
+        (newMessage.senderId?.toString() === openId ||
+          newMessage.receiverId?.toString() === openId)
       ) {
         appendMessage(newMessage);
       }

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import useConversation from "../zustand/userConveration";
 import toast from "react-hot-toast";
 import BASE_URL from "../config";
+import { getAuthToken } from "../lib/session";
 
 const useGetMessage = () => {
   const [loading, setLoading] = useState(false);
@@ -23,7 +24,7 @@ const useGetMessage = () => {
     const fetchMessages = async () => {
       setLoading(true);
       try {
-        const token = localStorage.getItem("token");
+        const token = getAuthToken();
         const res = await fetch(
           `${BASE_URL}/user/messages/${selectedConversation._id}?page=1&limit=20`,
           {
@@ -59,7 +60,7 @@ const useGetMessage = () => {
     setIsFetchingMore(true);
 
     try {
-      const token = localStorage.getItem("token");
+      const token = getAuthToken();
       const res = await fetch(
         `${BASE_URL}/user/messages/${selectedConversation._id}?page=${nextPage}&limit=20`,
         {
