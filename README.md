@@ -13,6 +13,7 @@ A full-stack real-time chat application built with React, Node.js, Express, Mong
 - Socket.IO Client
 - Tailwind CSS
 - Lucide React (icons)
+dlngir
 
 **Backend**
 
